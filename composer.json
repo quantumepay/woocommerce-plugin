@@ -1,0 +1,23 @@
+{
+    "name": "xohoa/woocommerce-gateway-qunatum",
+    "description": "Take credit card payments on your store using Quantum.",
+    "authors": [
+        {
+            "name": "Qoin - Payment Gateway",
+            "email": "info@xohoa.com"
+        }
+    ],
+    "require": {
+        "yahnis-elsts/plugin-update-checker": "^5.6"
+    },
+    "autoload": {
+        "psr-4": {
+          "WooQuantum\\":"src/",
+          "WooQuantum\\Blocks\\": "src/Blocks/"
+        },
+        "files" : [
+        	"src/constants.php",
+            "src/functions.php"
+        ]
+    }
+}

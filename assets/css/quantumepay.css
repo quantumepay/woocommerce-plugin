@@ -1,0 +1,246 @@
+:root {
+    --quantumepay-primary-color: #6a67f1;
+    --quantumepay-border-color: #e0e0e0;
+    --quantumepay-bg-color: #fff;
+    --quantumepay-text-color: #32325d;
+    --quantumepay-label-color: #8c96b4;
+    --quantumepay-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Main Container and Form Reset */
+.quantumepay-card-form {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--quantumepay-text-color);
+    background: var(--quantumepay-bg-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+    border: 1px solid #f0f0f0;
+}
+
+.email-page {
+    max-width: 500px;   /* form ki width limit */
+    margin: 40px auto;  /* center horizontally + thoda top-bottom space */
+    padding: 20px;      /* andar thoda spacing */
+    background: #fff;   /* optional: white background */
+    border-radius: 8px; /* optional: rounded corners */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* optional: light shadow */
+  }
+  
+
+/* Single-column Layout */
+.quantumepay-form-group {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.quantumepay-form-input-container {
+    position: relative;
+}
+
+/* Input Field Styling */
+.quantumepay-form-control {
+    width: 92%;
+    padding: 18px 16px;
+    border: 1px solid var(--quantumepay-border-color);
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1.5;
+    background: var(--quantumepay-bg-color);
+    transition: all 0.3s ease;
+    color: var(--quantumepay-text-color);
+}
+
+.quantumepay-form-control:focus {
+    outline: none;
+    border-color: var(--quantumepay-primary-color);
+    box-shadow: 0 0 0 4px rgba(106, 103, 241, 0.2);
+}
+
+.quantumepay-form-control::placeholder {
+    color: transparent;
+}
+  
+
+/* Floating Label Styling */
+.quantumepay-form-label {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--quantumepay-label-color);
+    font-size: 16px;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.quantumepay-form-control:focus + .quantumepay-form-label,
+.quantumepay-form-control:not(:placeholder-shown) + .quantumepay-form-label {
+    top: 0;
+    font-size: 12px;
+    color: var(--quantumepay-primary-color);
+    background-color: var(--quantumepay-bg-color);
+    padding: 0 6px;
+    transform: translateY(-50%) translateX(-4px);
+}
+
+.qp-lock-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: #4CAF50; /* green lock */
+}
+
+
+/* Row layout for half-width inputs */
+.quantumepay-form-row {
+    display: flex;
+    padding: 0; /* remove any container padding */
+}
+
+.quantumepay-half-width {
+    flex: 0 0 calc(50% - 5px); /* split width minus half gap */
+}
+
+.quantumepay-half-width:first-child {
+    margin-right: 10px; /* exact space between the two fields */
+}
+
+.quantumepay-half-width .quantumepay-form-control {
+    width: 84%;
+}
+
+/* Security Message */
+.quantumepay-security-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--quantumepay-label-color);
+    margin-top: 24px;
+    text-align: center;
+}
+
+.quantumepay-security-message svg {
+    margin-right: 8px;
+    fill: var(--quantumepay-label-color);
+}
+
+/* Valid Icon - Green Color */
+.quantumepay-valid-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background-color: #28a745; /* green color */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quantumepay-valid-icon::after {
+    content: '✓';
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* Blocks Checkout Styles */
+.quantumepay-bypass-notice {
+    background-color: #f8f8f8;
+    border-left: 4px solid #0073aa;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.quantumepay-bypass-notice p {
+    margin: 0;
+    color: #0073aa;
+    font-weight: 500;
+}
+
+.wc-block-components-radio-control__input[value="quantumepay"] + .wc-block-components-radio-control__label {
+    font-weight: bold;
+}
+
+.bypass-mode .wc-block-components-checkout-place-order-button {
+    background-color: #4caf50 !important;
+}
+
+/* Style for the payment method label in bypass mode */
+.quantumepay-payment-method-label.bypass-mode {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+/* Classic Checkout: Hide payment fields in bypass mode */
+body.woocommerce-checkout .payment_method_quantumepay.quantumepay-bypass-mode .quantumepay-payment-fields {
+    display: none !important;
+}
+
+/* Classic Checkout: Ensure payment box and Place Order button are visible */
+body.woocommerce-checkout .payment_method_quantumepay.quantumepay-bypass-mode .payment_box.payment_method_quantumepay,
+body.woocommerce-checkout .payment_method_quantumepay.quantumepay-bypass-mode #place_order {
+    display: block !important;
+}
+
+/* Classic Checkout: Style the bypass notice */
+body.woocommerce-checkout .payment_method_quantumepay.quantumepay-bypass-mode .woocommerce-info {
+    background-color: #f8f8f8;
+    border-left: 4px solid #0073aa;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+    color: #0073aa;
+    font-weight: 500;
+}
+.quantumepay-form-control:focus + .quantumepay-form-label,
+.quantumepay-form-control:not(:placeholder-shown) + .quantumepay-form-label {
+    top: 0;
+    font-size: 12px;
+    color: var(--quantumepay-primary-color);
+    background-color: var(--quantumepay-bg-color);
+    padding: 0 6px;
+    transform: translateY(-50%) translateX(-4px);
+}
+
+
+/* Pay Now Button */
+.quantumepay-btn {
+    display: inline-block;
+    width: 100%;
+    padding: 14px 18px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    color: #fff;
+    background: linear-gradient(90deg, #6a67f1 0%, #4f46e5 100%);
+    box-shadow: 0 4px 12px rgba(106, 103, 241, 0.3);
+    transition: all 0.25s ease-in-out;
+  }
+  
+  .quantumepay-btn:hover {
+    background: linear-gradient(90deg, #4f46e5 0%, #4338ca 100%);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+    transform: translateY(-2px);
+  }
+  
+  .quantumepay-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+  }
+  
+  .quantumepay-btn:disabled {
+    background: #a5a5a5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  
+  
