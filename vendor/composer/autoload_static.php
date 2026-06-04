@@ -7,7 +7,6 @@ namespace Composer\Autoload;
 class ComposerStaticInit622645e7feb9d40a11219d5a70f38fc8
 {
     public static $files = array (
-        'f6d4f6bcee7247df6b777884c3e22f98' => __DIR__ . '/..' . '/yahnis-elsts/plugin-update-checker/load-v5p6.php',
         '6fe5b75b4ec2e55ac45a8dad8f351dca' => __DIR__ . '/../..' . '/src/constants.php',
         'e37b7b7e2ca25ea2bd9fc2fded314ef1' => __DIR__ . '/../..' . '/src/functions.php',
     );
@@ -15,16 +14,11 @@ class ComposerStaticInit622645e7feb9d40a11219d5a70f38fc8
     public static $prefixLengthsPsr4 = array (
         'W' => 
         array (
-            'WooQuantum\\Blocks\\' => 18,
             'WooQuantum\\' => 11,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'WooQuantum\\Blocks\\' => 
-        array (
-            0 => __DIR__ . '/../..' . '/src/Blocks',
-        ),
         'WooQuantum\\' => 
         array (
             0 => __DIR__ . '/../..' . '/src',

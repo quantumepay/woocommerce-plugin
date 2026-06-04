@@ -13,14 +13,14 @@ define("QP_FORM_SETTINGS", "st_settings");
 define("QP_GATEWAY_ID", "quantumepay");
 
 //testing secret
-// define("TEST_API_URL", "https://paymentsuat.quantumepay.com/");
-// define("TEST_API_URL_IDENTITY", "https://identityuat.quantumepay.com/connect/token");
-// define("TESTING_CLIENT_ID", "client_6u03mdavh1gkavj1f58w009xmq5rdvru");
-// define("TESTING_CLIENT_SECRET", "qz0w49mav8afb06aaok5s90pdixxi26y");
-// define("TESTING_XTERMINAL_KEY", "26d3b75c-9ce4-4bcc-acce-c744da25f0ea");
-// // define("TESTING_XTERMINAL_KEY", "");
-// //live secret are here
-// define("LIVE_API_URL", "https://payments.quantumepay.com/");
-// define("LIVE_API_URL_IDENTITY", "https://identity.quantumepay.com/connect/token");
-// define("LIVE_CLIENT_ID", "client_2be5c58f03484229ac16e6e26ec0ca37"); //this is for live client id
-// define("LIVE_CLIENT_SECRET", "b455bb58beea40a29c3e3034d7ce8666"); // this is for live client secret
+define("TEST_API_URL", "https://uatpayments.quantumepay.com/");
+define("TEST_API_URL_IDENTITY", "https://uatidentity.quantumepay.com/connect/token");
+define("TESTING_CLIENT_ID", "client_6a2b0b8c-690c-4c68-848a-539f7547c63a");
+define("TESTING_CLIENT_SECRET", "secret");
+define("TESTING_XTERMINAL_KEY", "110d0ad1-8e78-49f7-8784-66fa548af52b");
+// define("TESTING_XTERMINAL_KEY", "");
+//live secret are here
+define("LIVE_API_URL", "https://payments.quantumepay.com/");
+define("LIVE_API_URL_IDENTITY", "https://identity.quantumepay.com/connect/token");
+define("LIVE_CLIENT_ID", "client_2be5c58f03484229ac16e6e26ec0ca37"); //this is for live client id
+define("LIVE_CLIENT_SECRET", "b455bb58beea40a29c3e3034d7ce8666"); // this is for live client secret

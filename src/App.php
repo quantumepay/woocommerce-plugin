@@ -2,177 +2,156 @@
 
 namespace WooQuantum;
 
-use WooQuantum\Application\Blocks\Quantum_Block_Handler;
-use WooQuantum\Application\Handler\QPKeyManager;
+use WooQuantum\Application\APIs\CreditCard;
 
-/**
- * Main application class for WooQuantum plugin.
- */
-final class App
+class App
 {
-	/**
-	 * App constructor.
-	 */
+
 	public function __construct()
 	{
-		$this->registerHooks();
+
+		new PluginUpdater(
+	        WC_QUANTUMEPAY_MAIN_FILE,
+	        WC_QUANTUMEPAY_UPDATE_REPO,
+	        WC_QUANTUMEPAY_UPDATE_BRANCH,
+	        WC_QUANTUMEPAY_UPDATE_ASSET_NAME
+	    );
+
+		
+		register_activation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginActivationHook'));
+		register_deactivation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginDeactivationHook'));
+
+		add_action('init', array($this, 'initCallback'));
+
+		add_action('plugins_loaded', array($this, 'QpInitGatewayClass'));
 	}
 
-	/**
-	 * Register all plugin hooks.
-	 */
-	private function registerHooks(): void
+	public function pluginActivationHook()
 	{
-		// Register activation and deactivation hooks
-		register_activation_hook(WC_QUANTUMEPAY_MAIN_FILE, [$this, 'pluginActivationHook']);
-		register_deactivation_hook(WC_QUANTUMEPAY_MAIN_FILE, [$this, 'pluginDeactivationHook']);
-
-		// Add actions
-		add_action('init', [$this, 'initCallback']);
-		add_action('plugins_loaded', [$this, 'QpInitGatewayClass']);
-		add_action('woocommerce_blocks_loaded', [$this, 'QpInitGatewayClass']);
 	}
 
-	/**
-	 * Handle plugin activation.
-	 */
-	public function pluginActivationHook(): void
+	public function pluginDeactivationHook()
 	{
-		$key_manager = new QPKeyManager();
-		$key_manager->handle_activation();
 	}
 
-	/**
-	 * Handle plugin deactivation.
-	 */
-	public function pluginDeactivationHook(): void
+	public function initCallback()
 	{
-		delete_option('qp_generated_key');
-		delete_option('qp_key_installation_pending');
-		delete_transient('qp_show_key_instructions');
 	}
 
-	/**
-	 * Initialize plugin on 'init' action.
-	 */
-	public function initCallback(): void
+	public function QpInitGatewayClass()
 	{
-		register_post_status('wc-awaiting-auth', [
-			'label' => 'Awaiting Authorization',
-			'public' => true,
-			'exclude_from_search' => false,
-			'show_in_admin_all_list' => true,
-			'show_in_admin_status_list' => true,
-			'label_count' => _n_noop('Awaiting Authorization (%s)', 'Awaiting Authorization (%s)'),
-		]);
-		register_post_status('wc-order-submitted', [
-			'label' => 'Order Submitted',
-			'public' => true,
-			'exclude_from_search' => false,
-			'show_in_admin_all_list' => true,
-			'show_in_admin_status_list' => true,
-			'label_count' => _n_noop('Order Submitted (%s)', 'Order Submitted (%s)'),
-		]);
-		register_post_status('wc-awaiting-payment', [
-			'label' => 'Awaiting Payment',
-			'public' => true,
-			'exclude_from_search' => false,
-			'show_in_admin_all_list' => true,
-			'show_in_admin_status_list' => true,
-			'label_count' => _n_noop('Awaiting Payment (%s)', 'Awaiting Payment (%s)', 'qoin-payment-gateway'),
-		]);
-	}
 
-	/**
-	 * Initializes the payment gateway class.
-	 */
-	public function QpInitGatewayClass(): void
-	{
-		if (!$this->isWooCommerceActive()) {
-			add_action('admin_notices', [$this, 'wooCommerceMissingNotice']);
-			return;
+		if (!class_exists('\\WooCommerce')) {
+			add_action('admin_notices', array($this, 'wooCommerceMissingNotice'));
+		} else {
+			add_action('wcsat_messages', array($this, 'printMessage'), 10);
+			add_filter('woocommerce_payment_gateways', array($this, 'add_gateways'));
 		}
-		if (class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
-			add_action('woocommerce_blocks_payment_method_type_registration', function ($registry) {
-				if (! $registry->is_registered('quantumepay')) {
-					$registry->register(new Quantum_Block_Handler());
-				}
-			});
-		}
-		add_action('wcsat_messages', [$this, 'printMessage'], 10);
-		add_filter('woocommerce_payment_gateways', [$this, 'add_gateways']);
 	}
 
+	public function wooCommerceMissingNotice()
+	{
+		echo '<div class="error"><p><strong>' . sprintf(esc_html__('Quantum ePay Gateway requires WooCommerce. You can download %s here.', ''), '<a href="https://woocommerce.com/" target="_blank">WooCommerce</a>') . '</strong></p></div>';
+		return;
+	}
 	/**
-	 * Check if WooCommerce is active.
+	 * printMessage
 	 *
-	 * @return bool
+	 * @return void
 	 */
-	private function isWooCommerceActive(): bool
-	{
-		return class_exists('WooCommerce');
-	}
-
-	/**
-	 * Displays an admin notice if WooCommerce is missing.
-	 */
-	public function wooCommerceMissingNotice(): void
-	{
-		printf(
-			'<div class="error"><p><strong>%s</strong></p></div>',
-			sprintf(
-				esc_html__(
-					'Quantum ePay Gateway requires WooCommerce. You can download %s here.',
-					'woocommerce'
-				),
-				'<a href="https://woocommerce.com/" target="_blank">WooCommerce</a>'
-			)
-		);
-	}
-
-	/**
-	 * Displays custom admin notices.
-	 */
-	public function printMessage(): void
+	public function printMessage()
 	{
 		$notice_arr = qp_show_notices();
-		if (!empty($notice_arr) && is_array($notice_arr) && isset($notice_arr['type'], $notice_arr['message'])) {
-			printf(
-				'<div class="notice notice-%s is-dismissible"><p>%s</p></div>',
-				esc_attr($notice_arr['type']),
-				esc_html($notice_arr['message'])
-			);
+		if (!empty($notice_arr)) {
+			echo '<div class="notice notice-' . $notice_arr['type'] . ' is-dismissible">
+                    <p>' . $notice_arr['message'] . '</p>
+                </div>';
 		}
 	}
 
-	/**
-	 * Adds the payment gateway to WooCommerce.
-	 *
-	 * @param array $gateways The array of payment gateways.
-	 * @return array The filtered array of payment gateways.
-	 */
-	public function add_gateways(array $gateways): array
+	public function add_gateways($gateways)
 	{
+
 		$gateways[] = 'WooQuantum\\Application\\Gateways\\CreditCard';
-		// $gateways[] = 'WooQuantum\\Application\\Gateways\\GatewayBypass';
 		return $gateways;
 	}
 
-	/**
-	 * Adds a custom order note to a WooCommerce order.
-	 *
-	 * @param int|string $order_id The ID of the order.
-	 */
-	public function add_custom_order_note($order_id): void
+	// public function QpRefundCreateCheck($refund, $args)
+	// {
+	// 	$payment_gateways   = \WC_Payment_Gateways::instance();
+	// 	$payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
+	// 	$order_id = $args['order_id'];
+	// 	$cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
+	// 	$payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
+	// 	$user_id = get_post_meta($order_id, '_billing_email', true);
+	// 	$pendingSettlement = $cardPayment->isPaymentSettled($payment_id);
+	// 	if (!$pendingSettlement) {
+	// 		$post_data = array(
+	// 			'user_id' => $user_id,
+	// 			'order_id' => $order_id
+	// 		);
+	// 		$cardPayment->processReversal($payment_id, $post_data);
+	// 		wp_delete_post($refund->get_id(), true);
+	// 		// if (isset($refund) && is_a($refund, 'WC_Order_Refund')) {
+	// 		// 	$refund->delete(true);
+	// 		// }
+	// 		// return new \WP_Error('error', 'order cannot be refunded it is under settelment');
+	// 	}
+	// }
+
+	// function QpOrderRefundAction($order_id, $refund_id)
+	// {
+
+	// 	qp_plugin_log('############## Refund  ###################');
+	// 	qp_plugin_log("-----------------------------------------------------------------------------------------");
+	// 	qp_plugin_log($order_id);
+	// 	qp_plugin_log($refund_id);
+
+
+	// 	// Get the order object
+	// 	// $order = wc_get_order($order_id);
+	// 	$order = wc_get_order($order_id);
+	// 	qp_plugin_log('order sttaus' . $order->get_status());
+	// 	if ($order->get_status() == 'wc-cancelled') {
+	// 		qp_plugin_log('order cancelled');
+	// 		return;
+	// 	}
+	// 	$order_data = $order->get_data(); // The Order data  
+
+	// 	qp_plugin_log("****** Order Detail**********");
+	// 	qp_plugin_log($order_data);
+	// 	// Get the refund object
+	// 	$refund = wc_get_order($refund_id);
+	// 	qp_plugin_log("******Refund**********");
+	// 	qp_plugin_log($refund);
+
+	// 	// Check if the refund is fully or partially refunded
+	// 	$is_partial_refund = ($refund->get_amount() < $order->get_total());
+	// 	qp_plugin_log("******Total amount**********");
+	// 	qp_plugin_log($order->get_total());
+
+	// 	$payment_gateways   = \WC_Payment_Gateways::instance();
+	// 	$payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
+	// 	$refund_amount = $refund->get_amount();
+	// 	$cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
+	// 	$payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
+	// 	$user_id = get_post_meta($order_id, '_billing_email', true);
+	// 	$post_data = array(
+	// 		'amount' => $refund_amount,
+	// 		'order_id' => $order_id,
+	// 		'user_id' => $user_id
+	// 	);
+	// 	$cardPayment->processRefund($payment_id, $post_data);
+	// }
+
+	public  function add_custom_order_note($order_id)
 	{
-		qp_plugin_log('Order ' . $order_id);
-
+		qp_plugin_log('Order $order_id ');
+		qp_plugin_log($order_id);
 		$order_note = 'Your order note here Asad';
-		$order = wc_get_order($order_id);
 
-		if ($order instanceof \WC_Order) {
-			$order->add_order_note($order_note);
-			$order->add_order_note($order_note, 1);
-		}
+		$order = wc_get_order($order_id);
+		$order->add_order_note($order_note); // This will add as a private note.
+		$order->add_order_note($order_note, 1); //This will add note for          the customer.
 	}
 }

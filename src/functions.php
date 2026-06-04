@@ -1,7 +1,8 @@
 <?php
-// ------------------------------
-// Debugging helper
-// ------------------------------
+// define any global functions here
+
+
+
 if (!function_exists('qp_dd')) {
     function qp_dd($data, $is_die = true)
     {
@@ -13,10 +14,6 @@ if (!function_exists('qp_dd')) {
         }
     }
 }
-
-// ------------------------------
-// JSON helpers
-// ------------------------------
 if (!function_exists('qp_arr_to_json')) {
     function qp_arr_to_json($arr)
     {
@@ -31,28 +28,24 @@ if (!function_exists('qp_json_to_arr')) {
     }
 }
 
-// ------------------------------
-// WooCommerce notices
-// ------------------------------
 if (!function_exists('qp_add_notices')) {
     function qp_add_notices($notice_arr)
     {
         $key = QP_NOTICES;
         if (is_user_logged_in()) {
             $user_id = get_current_user_id();
-            $key .= $user_id;
+            $key = $key . $user_id;
         }
         set_transient($key, $notice_arr);
     }
 }
-
 if (!function_exists('qp_show_notices')) {
     function qp_show_notices()
     {
         $key = QP_NOTICES;
         if (is_user_logged_in()) {
             $user_id = get_current_user_id();
-            $key .= $user_id;
+            $key = $key . $user_id;
         }
         $notice_arr = get_transient($key);
         delete_transient($key);
@@ -60,11 +53,9 @@ if (!function_exists('qp_show_notices')) {
     }
 }
 
-// ------------------------------
-// Get real user IP
-// ------------------------------
-if (!function_exists('qp_get_user_ip')) {
 
+if (!function_exists('qp_get_user_ip')) {
+   
     function qp_get_user_ip(bool $publicOnly = false): string
     {
         $keys = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
@@ -107,147 +98,290 @@ if (!function_exists('qp_get_user_ip')) {
     }
 }
 
-// ------------------------------
-// Logging function
-// ------------------------------
+
+
 if (!function_exists('qp_plugin_log')) {
-    function qp_plugin_log($message, $data = null)
+    function qp_plugin_log($entry, $mode = 'a', $file = 'quantumepay')
     {
-        $log_file = WP_CONTENT_DIR . '/uploads/quantumepay.log';
+        $upload_dir = wp_upload_dir();
+        $upload_dir = $upload_dir['basedir'];
 
-        // Ensure directory is writable
-        if (!is_writable(dirname($log_file))) {
-            error_log("Quantum ePay log file directory is not writable: " . dirname($log_file));
-            return;
+        if (is_array($entry)) {
+            $entry = json_encode($entry);
+        }
+        if (is_object($entry)) {
+            $entry = json_encode($entry);
         }
 
-        // Format the log message
-        $log = '[' . current_time('mysql') . '] ' . $message;
+        $file  = $upload_dir . '/' . $file . '.log';
+        $file  = fopen($file, $mode);
+        $bytes = fwrite($file, current_time('mysql') . "::" . $entry . "\n");
+        fclose($file);
 
-        // Handle different data types for logging
-        if (!is_null($data)) {
-            if (is_array($data) || is_object($data)) {
-                $log .= ': ' . print_r($data, true);
-            } elseif (is_scalar($data)) {
-                $log .= ': ' . $data;
-            } else {
-                $log .= ': [Unsupported data type]';
-            }
-        }
-        $log .= "\n";
-
-        // Write to file with locking
-        file_put_contents($log_file, $log, FILE_APPEND | LOCK_EX);
+        return $bytes;
     }
 }
+// function getToken($payment = null)
+// {
+//     if (false === ($qp_token = get_transient('qp_token'))) {
+//         qp_plugin_log("get token ***");
 
-// ------------------------------
-// Change WooCommerce order status
-// ------------------------------
+//         $argsToken = array(
+//             'method'      => 'POST',
+//             'timeout'     => 5,
+//             'redirection' => 5,
+//             'blocking'    => true,
+//             'body' => http_build_query(array(
+//                 'client_id' => $payment->testmode ? TESTING_CLIENT_ID : LIVE_CLIENT_ID,
+//                 'client_secret' => $payment->testmode ? TESTING_CLIENT_SECRET : LIVE_CLIENT_SECRET,
+//                 'grant_type' => 'client_credentials',
+//             ))
+//         );
+
+//         $token_endpoint = $payment->testmode ? TEST_API_URL_IDENTITY : LIVE_API_URL_IDENTITY;
+//         qp_plugin_log($token_endpoint);
+//         qp_plugin_log($argsToken);
+
+//         $responseToken = wp_remote_post($token_endpoint, $argsToken);
+//         qp_plugin_log("*** GET TOKEN  Response token App***");
+
+//         qp_plugin_log($responseToken);
+
+
+
+
+//         if (!is_wp_error($responseToken)) {
+
+//             $bodyToken = json_decode($responseToken['body']);
+//             if (!empty($bodyToken->access_token)) {
+//                 $qp_token = $bodyToken->access_token;
+//                 set_transient('qp_token', $qp_token, 600);
+//                 qp_plugin_log("fetched token: " . $qp_token);
+//             } else {
+//                 qp_plugin_log("Token error: " . serialize($bodyToken));
+//                 wc_add_notice('Token error: ' . $bodyToken->error, 'error');
+//                 return;
+//             }
+//         } else {
+//             $error_response = json_decode($responseToken->get_error_message());
+//             qp_plugin_log("wp_error: ");
+//             qp_plugin_log($error_response);
+//             wc_add_notice('Payment gateway connection error. ' . serialize($error_response), 'error');
+//             return;
+//         }
+//     } //
+
+//     return $qp_token;
+// }
 if (!function_exists('qp_change_order_status')) {
     function qp_change_order_status($order_id, $status)
     {
         $order = new WC_Order($order_id);
         $orderNote = "Payment result: cancelled. \r\n payment id: ### <br>\r\n Transaction_id: #### ";
+        //     update_post_meta($order_id,  '_refund_api_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
 
         qp_plugin_log("Change Status ************-===>>>");
         qp_plugin_log($orderNote);
-
         $order_detail_object = wc_get_order($order_id);
         $order_detail_object->add_order_note($orderNote);
-
         qp_plugin_log('######### ORDER CANCELED ############');
         qp_plugin_log($order_detail_object);
+        $order_detail_object->update_status($status, 'order_note'); // order note is optional, if you want to  add a note to order
 
-        // Update status
-        $order_detail_object->update_status($status, 'order_note');
     }
 }
+// function reversel_api_hit($payment_id, $payment, $user_id, $order_id)
+// {
+
+//     qp_plugin_log("*************** Reversal Api Calling **************");
+//     $argsPayment = array(
+//         'method'      => 'POST',
+//         'timeout'     => 5,
+//         'redirection' => 5,
+//         'blocking'    => true,
+//         'headers'     => array(
+//             'Content-Type' => 'application/json',
+//             'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
+//             'Authorization' => 'Bearer ' . get_transient('qp_token')
+//         ),
+//         'body' => wp_json_encode(array(
+//             // 'payment_id' => $payment_id,
+
+//             // 'account' => array('first_name' => $billingData['first_name'], 'last_name' => $billingData['last_name'], 'card_security_code' => $qp_cvv, 'expiry_month' => $expiry_month, 'expiry_year' => $expiry_year, 'card_number' => $qp_ccNo, 'billing_address' => $billing_address),
+//             // 'currency' => $order['currency'],
+
+//             'source_ip_address' => getRealUserIp(),
+//             'user_id' => $user_id
+//         ))
 
 
-if (!function_exists('qp_effective_checkout_type')) {
-    function qp_effective_checkout_type()
-    {
-        static $cached_type = null;
-        static $cached_source = null;
+//     );
 
-        if ($cached_type !== null && is_checkout()) {
-            return $cached_type;
-        }
+//     qp_plugin_log('****** Response Reversel ARGS Detail*******');
 
-        // Fallback if cart isn't initialized
-        if (!did_action('wp_loaded') || is_null(WC()->cart)) {
-            $settings = get_option('woocommerce_' . QP_GATEWAY_ID . '_settings', []);
-            return $settings['global_checkout_type'] ?? 'standard';
-        }
+//     qp_plugin_log($argsPayment);
+//     qp_plugin_log('****** Reversal Api call *******');
+//     $payment_endpoint = TEST_API_URL . 'creditcard/' . $payment_id . '/reversal';
 
-        $cart = WC()->cart->get_cart();
-        if (empty($cart)) {
-            $settings = get_option('woocommerce_' . QP_GATEWAY_ID . '_settings', []);
-            $cached_type = $settings['global_checkout_type'] ?? 'standard';
-            return $cached_type;
-        }
+//     $responsePayment = wp_remote_post($payment_endpoint, $argsPayment);
+//     $responseBody = json_decode($responsePayment['body'], 1);
 
-        $valid_types = ['standard', 'pre_authorize', 'bypass'];
-        $cart_types = [];
+//     qp_plugin_log('****** $$  Reversal Body Response*******');
+//     qp_plugin_log($responseBody);
 
-        foreach ($cart as $item) {
-            $product_id = $item['product_id'];
-            $product_type = null;
+//     qp_plugin_log('****** $$  Reversal Status*******');
+//     qp_plugin_log($responseBody['status']);
+//     if ($responseBody['status'] == 'reversed') {
 
-            // Check product-level setting
-            $product_setting = get_post_meta($product_id, '_quantumepay_checkout_type', true);
-            if (in_array($product_setting, $valid_types, true)) {
-                $product_type = $product_setting;
-            } else {
-                // Check category-level settings (strictest first)
-                $category_ids = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'ids']);
-                $category_types = [];
-                foreach ($category_ids as $cat_id) {
-                    $cat_setting = get_term_meta($cat_id, 'quantumepay_checkout_type', true);
-                    if (in_array($cat_setting, $valid_types, true)) {
-                        $category_types[] = $cat_setting;
-                    }
-                }
-                // Determine strictest category type for this product
-                if (in_array('standard', $category_types, true)) {
-                    $product_type = 'standard';
-                } elseif (in_array('pre_authorize', $category_types, true)) {
-                    $product_type = 'pre_authorize';
-                } elseif (in_array('bypass', $category_types, true)) {
-                    $product_type = 'bypass';
-                }
-            }
+//         change_status_to_refund($order_id);
+//     }
+//     //     add_action( 'woocommerce_order_status_cancelled', 'change_status_to_refund', 
+//     // 21, 1 );
 
-            if ($product_type) {
-                $cart_types[] = $product_type;
-            }
-        }
+// }
 
-        // Determine strictest type across entire cart
-        if (in_array('standard', $cart_types, true)) {
-            $effective_type = 'standard';
-        } elseif (in_array('pre_authorize', $cart_types, true)) {
-            $effective_type = 'pre_authorize';
-        } else {
-            // Fallback to global setting if no product/category types
-            $settings = get_option('woocommerce_' . QP_GATEWAY_ID . '_settings', []);
-            $effective_type = $settings['global_checkout_type'] ?? 'standard';
-        }
+// function payment_detail_api_hit($payment_id, $payment, $order_id)
+// {
+//     qp_plugin_log('****** Payment Detail Api call *******');
+//     $payment_endpoint = TEST_API_URL . 'creditcard/' . $payment_id;
+//     qp_plugin_log('****** Payment Detail Api End Point*******');
+//     qp_plugin_log($payment_endpoint);
+//     // getToken($payment);
+//     // if (!empty(getToken($payment))) {
+//     $argsPayment = array(
+//         'method'      => 'GET',
+//         'timeout'     => 5,
+//         'redirection' => 5,
+//         'blocking'    => true,
+//         'headers'     => array(
+//             'Content-Type' => 'application/json',
+//             'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
+//             'Authorization' => 'Bearer ' . get_transient('qp_token')
+//         ),
 
-        $cached_type = $effective_type;
-        return $effective_type;
-    }
-}
+//     );
 
-if (!function_exists('qp_checkout_types')) {
-    function qp_checkout_types()
-    {
-        return [
-            '' => 'Select Checkout Type',
-            'standard' => 'Standard Checkout',
-            'pre_authorize' => 'Pre-Authorize',
-            'bypass' => 'Bypass Payment',
-        ];
-    }
-}
+//     qp_plugin_log('****** Response Payment ARGS Detail*******');
+
+//     qp_plugin_log($argsPayment);
+
+//     $responsePayment = wp_remote_get($payment_endpoint, $argsPayment);
+//     $responseBody = json_decode($responsePayment['body'], 1);
+
+//     qp_plugin_log('****** $$  Payment Status*******');
+//     qp_plugin_log($responseBody['status']);
+
+//     if ($responseBody['status'] == 'pending_settlement') {
+//         $user_id = get_post_meta($order_id, '_billing_email', true);
+//         reversel_api_hit($payment_id, $payment, $user_id, $order_id);
+//         return true;
+//     }
+
+
+//     // }
+//     return false;
+// }
+
+// function refundApiHit($refund_amount, $payment, $order_id, $order, $type_refund)
+// {
+
+//     qp_plugin_log('****** ####################### *******');
+//     qp_plugin_log('****** Function call RefundAPIHIT*******');
+//     qp_plugin_log($order);
+
+//     $payment_id = get_post_meta($order_id, 'quantumepay_payment_id', true);
+
+//     qp_plugin_log('****** Payment id *******');
+//     qp_plugin_log($payment_id);
+
+//     //payment detail api call
+//     $payment_check = payment_detail_api_hit($payment_id, $payment, $order_id);
+
+//     if (!$payment_check) {
+
+//         $billingData = $order['billing'];
+//         $billing_address = array('address_1' => $billingData['address_1'], 'address_2' => $billingData['address_2'], 'city' => $billingData['city'], 'state' => $billingData['state'], 'postal_code' => $billingData['postcode'], 'country_code' => $billingData['country']);
+
+
+//         $qp_ccNo            = trim($_POST['qp_ccNo']);
+//         $qp_expdate_post     = $_POST['qp_expdate'];
+//         $qp_expdate         = str_replace(' ', '', $qp_expdate_post);
+//         $exp                     = explode("/", $qp_expdate);
+//         $expiry_month        = $exp[0];
+//         $expiry_year         = $exp[1];
+//         $qp_cvv              = trim($_POST['qp_cvv']);
+
+//         $argsPayment = array(
+//             'method'      => 'POST',
+//             'timeout'     => 5,
+//             'redirection' => 5,
+//             'blocking'    => true,
+//             'headers'     => array(
+//                 'Content-Type' => 'application/json',
+//                 'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
+//                 'Authorization' => 'Bearer ' . get_transient('qp_token')
+//             ),
+
+//             'body' => wp_json_encode(array(
+//                 // 'payment_id' => $payment_id,
+//                 'amount' => $refund_amount,
+//                 // 'account' => array('first_name' => $billingData['first_name'], 'last_name' => $billingData['last_name'], 'card_security_code' => $qp_cvv, 'expiry_month' => $expiry_month, 'expiry_year' => $expiry_year, 'card_number' => $qp_ccNo, 'billing_address' => $billing_address),
+//                 // 'currency' => $order['currency'],
+
+//                 'source_ip_address' => getRealUserIp(),
+//                 'user_id' => get_post_meta($order_id, '_billing_email', true)
+//             ))
+//         );
+//         qp_plugin_log('****** Payment args*******');
+//         qp_plugin_log($argsPayment);
+//         qp_plugin_log('****** Xtermina Key*******');
+//         qp_plugin_log($payment->get_option('terminal_key'));
+
+//         // Your API integration code here for partial refund
+
+//         // https://uatpayments.quantumepay.com/creditcard/{payment_id}/refund
+//         $payment_endpoint = TEST_API_URL . 'creditcard/' . get_post_meta($order_id, 'quantumepay_payment_id', true) . '/refund';
+//         qp_plugin_log('****** End Point*******');
+//         qp_plugin_log($payment_endpoint);
+
+//         $responsePayment = wp_remote_post($payment_endpoint, $argsPayment);
+//         qp_plugin_log('****** Response Payment*******');
+//         qp_plugin_log($responsePayment);
+
+
+//         $responseBody = json_decode($responsePayment['body'], 1);
+//         //    dd($responseBody);
+//         qp_plugin_log(' ===>>>> responseBody >>>>>' . $type_refund);
+//         qp_plugin_log($responseBody);
+//         qp_plugin_log('##');
+
+//         $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
+//         $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
+//         // $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
+
+
+//         // update_post_meta($order_id, $this->id . '_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
+//         // update_post_meta($order_id, $this->id . '_payment_id', $payment_id);
+//         // update_post_meta($order_id, $this->id . '_transaction_id', $transaction_id);
+
+//         // if ($responseBody['processor']['message'] == 'APPROVED') {
+//         // $processor = $responseBody['processor'];
+
+//         $message        = $responseBody['message']; // approved or completed
+//         $status         = $responseBody['status'];   // pending_settlement
+
+//         $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
+//         update_post_meta($order_id,  '_refund_api_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
+
+//         qp_plugin_log($orderNote);
+//         $order_detail_object = wc_get_order($order_id);
+//         $order_detail_object->add_order_note($orderNote);
+
+//         // qp_plugin_log('$$$$$$$ End Function $$$$$$$$$$$');
+
+//         // }       
+
+//     } //payment_check id detail
+
+
+// }

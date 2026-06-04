@@ -6,6 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'WooQuantum\\Blocks\\' => array($baseDir . '/src/Blocks'),
     'WooQuantum\\' => array($baseDir . '/src'),
 );
