@@ -103,24 +103,11 @@ if (!function_exists('qp_get_user_ip')) {
 if (!function_exists('qp_plugin_log')) {
     function qp_plugin_log($entry, $mode = 'a', $file = 'quantumepay')
     {
-        $upload_dir = wp_upload_dir();
-        $upload_dir = $upload_dir['basedir'];
-
-        if (is_array($entry)) {
-            $entry = json_encode($entry);
-        }
-        if (is_object($entry)) {
-            $entry = json_encode($entry);
-        }
-
-        $file  = $upload_dir . '/' . $file . '.log';
-        $file  = fopen($file, $mode);
-        $bytes = fwrite($file, current_time('mysql') . "::" . $entry . "\n");
-        fclose($file);
-
-        return $bytes;
+        return false;
     }
 }
+
+
 // function getToken($payment = null)
 // {
 //     if (false === ($qp_token = get_transient('qp_token'))) {

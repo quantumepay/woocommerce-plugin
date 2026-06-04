@@ -17,13 +17,41 @@ class App
 	        WC_QUANTUMEPAY_UPDATE_ASSET_NAME
 	    );
 
-		
+		$this->cleanupLegacyLogs();
 		register_activation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginActivationHook'));
 		register_deactivation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginDeactivationHook'));
 
 		add_action('init', array($this, 'initCallback'));
 
 		add_action('plugins_loaded', array($this, 'QpInitGatewayClass'));
+	}
+
+
+	private function cleanupLegacyLogs()
+	{
+	    $installed_version = get_option('wc_quantumepay_version');
+
+	    if (
+	        !empty($installed_version) &&
+	        version_compare($installed_version, WC_QUANTUMEPAY_VERSION, '>=')
+	    ) {
+	        return;
+	    }
+
+	    $upload_dir = wp_upload_dir();
+
+	    $files = array(
+	        $upload_dir['basedir'] . '/quantumepay.log',
+	        $upload_dir['basedir'] . '/quantum.log',
+	    );
+
+	    foreach ($files as $file) {
+	        if (file_exists($file)) {
+	            @unlink($file);
+	        }
+	    }
+
+	    update_option('wc_quantumepay_version', WC_QUANTUMEPAY_VERSION);
 	}
 
 	public function pluginActivationHook()
