@@ -3,12 +3,12 @@
 Plugin Name: Qoin - Payment Gateway
 Description: Accept credit card payments with Qoin, the next generation WooCommerce payment gateway. Only from Quantum ePay.
 Author: Quantum ePay
-Version: 1.2.1
+Version: 1.2.2
 */
 
 defined('ABSPATH') or die('No script kiddies please!');
 
-define('WC_QUANTUMEPAY_VERSION', '1.2.1');
+define('WC_QUANTUMEPAY_VERSION', '1.2.2');
 define('WC_QUANTUMEPAY_MIN_PHP_VER', '5.3.0');
 define('WC_QUANTUMEPAY_MIN_WC_VER', '2.5.0');
 define('WC_QUANTUMEPAY_MAIN_FILE', __FILE__);
