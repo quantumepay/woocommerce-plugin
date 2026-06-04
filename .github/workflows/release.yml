@@ -1,0 +1,37 @@
+name: Build Plugin Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      - name: Create plugin ZIP
+        run: |
+          PLUGIN_SLUG="woocommerce-gateway-quantum"
+          ZIP_NAME="woocommerce-gateway-quantum.zip"
+
+          mkdir -p build/$PLUGIN_SLUG
+
+          rsync -av \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="build" \
+            --exclude=".DS_Store" \
+            ./ build/$PLUGIN_SLUG/
+
+          cd build
+          zip -r $ZIP_NAME $PLUGIN_SLUG
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/woocommerce-gateway-quantum.zip
+          generate_release_notes: true
