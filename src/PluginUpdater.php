@@ -82,9 +82,9 @@ class PluginUpdater
         $cache_key = 'wc_quantumepay_latest_release_' . md5($this->repo . $this->branch . $this->asset_name);
         $cached = get_transient($cache_key);
 
-        // if ($cached !== false) {
-        //     return $cached;
-        // }
+        if ($cached !== false) {
+            return $cached;
+        }
 
         $response = wp_remote_get('https://api.github.com/repos/' . $this->repo . '/releases/latest', array(
             'timeout' => 15,
@@ -117,7 +117,7 @@ class PluginUpdater
             'body' => !empty($body['body']) ? $body['body'] : '',
         );
 
-        // set_transient($cache_key, $release, 6 * HOUR_IN_SECONDS);
+        set_transient($cache_key, $release, 6 * HOUR_IN_SECONDS);
 
         return $release;
     }
