@@ -335,7 +335,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
         $order->save();
 
         $order_data = $order->get_data();
-        qp_plugin_log($order_data);
 
         $billingData = $order_data['billing'];
         if (empty($billingData) and !empty($order_data['shipping'])) $billingData = $order_data['shipping'];
@@ -398,12 +397,9 @@ class CreditCard extends \WC_Payment_Gateway_CC
         } else {
             $responsePayment = $cardPayment->processPayment($post_data);
         }
+        
 
-        qp_plugin_log($responsePayment);
         $responseBody = $responsePayment['body'];
-        qp_plugin_log('responseBody');
-        qp_plugin_log($responseBody);
-        qp_plugin_log('###############################');
         $responseBody = qp_json_to_arr($responseBody, true);
 
         if ($this->is_timeout_payment_response($responsePayment, $responseBody)) {
@@ -421,7 +417,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
             );
         }
 
-        qp_plugin_log($this->id);
         if (!empty($responseBody['message']) && $responseBody['message'] == 'approved or completed') {
             $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
             $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
@@ -434,7 +429,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
 
             $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
 
-            qp_plugin_log($orderNote);
 
             $order->add_order_note($orderNote);
 
@@ -463,8 +457,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
                 }
             }
 
-            qp_plugin_log('******************');
-            qp_plugin_log($responseBody['errors']);
 
             $error_message_to_show = '';
 
@@ -516,7 +508,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
 
     public function process_subscription_payment($renewal_order, $amount_to_charge)
     {
-        qp_plugin_log('Process Subscription Payment');
         $order_id = $renewal_order->get_id();
         $subscriptions = wcs_get_subscriptions_for_order($order_id, ['order_type' => 'any']);
         foreach ($subscriptions as $subscriptionID => $subscriptionObj) {
@@ -532,7 +523,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
 
 
         $currency = $renewal_order->get_currency();
-        // qp_plugin_log("user_id");
         $user_id = $parent_order->get_billing_email();
         // qp_dd($user_id);
         $post_data = array(
@@ -546,9 +536,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
         );
         $cardPayment = new APIsCreditCard($this->terminal_key, $this->testmode);
         $responseBody = $cardPayment->processRebill($payment_id, $post_data);
-        qp_plugin_log('responseBody');
-        qp_plugin_log($responseBody);
-        qp_plugin_log('###############################');
         if ($responseBody)
             if ($responseBody['message'] == 'approved or completed') {
                 $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
@@ -563,7 +550,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
                 $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
 
                 // wc_add_notice($orderNote, 'success');
-                qp_plugin_log($orderNote);
 
                 $renewal_order->add_order_note($orderNote);
 
@@ -588,8 +574,6 @@ class CreditCard extends \WC_Payment_Gateway_CC
                         $errMsg .= $err['field'] . ' - ' . $err['message'] . "<br>\r\n";
                     }
                 }
-                qp_plugin_log('******************');
-                qp_plugin_log($responseBody['errors']);
                 $error_message_to_show = '';
                 // qp_dd($responseBody['errors'][0]['code']);
                 if ($responseBody['code'] == 'insufficient_funds') {
@@ -643,6 +627,7 @@ class CreditCard extends \WC_Payment_Gateway_CC
             return new \WP_Error('refund_failed', __('Refund processing via ' . $this->method_title . ' failed because transaction is in settlement state, order marked as cancelled. Click okay to continue, then refresh the page.', ''));
         }
     }
+
     // public function quantumepay_hook()
     // {
 

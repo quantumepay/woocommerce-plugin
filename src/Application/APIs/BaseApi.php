@@ -23,7 +23,7 @@ class BaseApi
     {
         $qp_token = get_transient('qp_token');
         if (empty($qp_token)) {
-            qp_plugin_log("get token ***");
+            
 
             $argsToken = array(
                 'method'      => 'POST',
@@ -37,27 +37,24 @@ class BaseApi
                 ))
             );
             $token_endpoint = $this->token_url;
-            qp_plugin_log($token_endpoint);
-            qp_plugin_log($argsToken);
 
             $responseToken = wp_remote_post($token_endpoint, $argsToken);
-            qp_plugin_log("*** GET TOKEN  Response token App***");
+            
             if (!is_wp_error($responseToken)) {
 
                 $bodyToken = qp_json_to_arr($responseToken['body']);
                 if (!empty($bodyToken->access_token)) {
                     $qp_token = $bodyToken->access_token;
                     set_transient('qp_token', $qp_token, 600);
-                    qp_plugin_log("fetched token: " . $qp_token);
+                    
                 } else {
-                    qp_plugin_log("Token error: " . serialize($bodyToken));
                     wc_add_notice('Token error: ' . $bodyToken->error, 'error');
                     return;
                 }
             } else {
                 $error_response = qp_json_to_arr($responseToken->get_error_message());
-                qp_plugin_log("wp_error: ");
-                qp_plugin_log($error_response);
+                
+                
                 wc_add_notice('Payment gateway connection error. ' . serialize($error_response), 'error');
                 return;
             }
@@ -68,32 +65,38 @@ class BaseApi
     public function getData($end_point)
     {
         $access_token = $this->authenticate();
+
         if (empty($access_token)) {
             return [];
         }
+
         $argsPayment = array(
             'method'      => 'GET',
             'timeout'     => 60,
             'redirection' => 5,
             'blocking'    => true,
             'headers'     => array(
-                'Content-Type' => 'application/json',
+                'Content-Type'   => 'application/json',
                 'X-TERMINAL-KEY' => $this->xterminal_key,
-                'Authorization' => 'Bearer ' . $access_token
+                'Authorization'  => 'Bearer ' . $access_token,
             ),
-
         );
 
-        qp_plugin_log('****** Get Data*******');
+        $responsePayment = wp_remote_get(
+            $this->base_url . $end_point,
+            $argsPayment
+        );
 
-        qp_plugin_log($argsPayment);
+        qp_send_plugin_event($response, $post_fields);
 
-        $responsePayment = wp_remote_get($this->base_url . $end_point, $argsPayment);
-        if (!is_wp_error($responsePayment)) {
-            $responseBody = qp_json_to_arr($responsePayment['body'], true);
+        if (is_wp_error($responsePayment)) {
+
+            $error_code = $responsePayment->get_error_code();
+            $error_message = $responsePayment->get_error_message();
+            return [];
         }
 
-        return [];
+        return qp_json_to_arr($responsePayment['body'], true);
     }
 
     public function postData($post_fields, $end_point)
@@ -117,15 +120,15 @@ class BaseApi
         );
 
         $payment_endpoint = $this->base_url . $end_point;
-        qp_plugin_log($payment_endpoint);
-        qp_plugin_log($argsPayment);
 
         $response = wp_remote_post($payment_endpoint, $argsPayment);
+        // error_log('1231' . json_encode($response));
+        qp_send_plugin_event($response, $post_fields);
+
         if (!is_wp_error($response)) {
             return $response;
         }
-
-        qp_plugin_log('wp_remote_post error: ' . $response->get_error_message());
+        
 
         return array(
             'body' => '',

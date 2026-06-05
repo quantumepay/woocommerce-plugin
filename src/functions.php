@@ -108,58 +108,6 @@ if (!function_exists('qp_plugin_log')) {
 }
 
 
-// function getToken($payment = null)
-// {
-//     if (false === ($qp_token = get_transient('qp_token'))) {
-//         qp_plugin_log("get token ***");
-
-//         $argsToken = array(
-//             'method'      => 'POST',
-//             'timeout'     => 5,
-//             'redirection' => 5,
-//             'blocking'    => true,
-//             'body' => http_build_query(array(
-//                 'client_id' => $payment->testmode ? TESTING_CLIENT_ID : LIVE_CLIENT_ID,
-//                 'client_secret' => $payment->testmode ? TESTING_CLIENT_SECRET : LIVE_CLIENT_SECRET,
-//                 'grant_type' => 'client_credentials',
-//             ))
-//         );
-
-//         $token_endpoint = $payment->testmode ? TEST_API_URL_IDENTITY : LIVE_API_URL_IDENTITY;
-//         qp_plugin_log($token_endpoint);
-//         qp_plugin_log($argsToken);
-
-//         $responseToken = wp_remote_post($token_endpoint, $argsToken);
-//         qp_plugin_log("*** GET TOKEN  Response token App***");
-
-//         qp_plugin_log($responseToken);
-
-
-
-
-//         if (!is_wp_error($responseToken)) {
-
-//             $bodyToken = json_decode($responseToken['body']);
-//             if (!empty($bodyToken->access_token)) {
-//                 $qp_token = $bodyToken->access_token;
-//                 set_transient('qp_token', $qp_token, 600);
-//                 qp_plugin_log("fetched token: " . $qp_token);
-//             } else {
-//                 qp_plugin_log("Token error: " . serialize($bodyToken));
-//                 wc_add_notice('Token error: ' . $bodyToken->error, 'error');
-//                 return;
-//             }
-//         } else {
-//             $error_response = json_decode($responseToken->get_error_message());
-//             qp_plugin_log("wp_error: ");
-//             qp_plugin_log($error_response);
-//             wc_add_notice('Payment gateway connection error. ' . serialize($error_response), 'error');
-//             return;
-//         }
-//     } //
-
-//     return $qp_token;
-// }
 if (!function_exists('qp_change_order_status')) {
     function qp_change_order_status($order_id, $status)
     {
@@ -177,198 +125,238 @@ if (!function_exists('qp_change_order_status')) {
 
     }
 }
-// function reversel_api_hit($payment_id, $payment, $user_id, $order_id)
-// {
 
-//     qp_plugin_log("*************** Reversal Api Calling **************");
-//     $argsPayment = array(
-//         'method'      => 'POST',
-//         'timeout'     => 5,
-//         'redirection' => 5,
-//         'blocking'    => true,
-//         'headers'     => array(
-//             'Content-Type' => 'application/json',
-//             'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
-//             'Authorization' => 'Bearer ' . get_transient('qp_token')
-//         ),
-//         'body' => wp_json_encode(array(
-//             // 'payment_id' => $payment_id,
+if (!function_exists('qp_normalize_plugin_event_type')) {
+    function qp_normalize_plugin_event_type($event_type, $data = array())
+    {
+        $event_type = sanitize_key($event_type);
 
-//             // 'account' => array('first_name' => $billingData['first_name'], 'last_name' => $billingData['last_name'], 'card_security_code' => $qp_cvv, 'expiry_month' => $expiry_month, 'expiry_year' => $expiry_year, 'card_number' => $qp_ccNo, 'billing_address' => $billing_address),
-//             // 'currency' => $order['currency'],
+        $error_code = isset($data['error_code']) && !is_array($data['error_code'])
+            ? strtolower((string) $data['error_code'])
+            : '';
 
-//             'source_ip_address' => getRealUserIp(),
-//             'user_id' => $user_id
-//         ))
+        $message = isset($data['message']) && !is_array($data['message'])
+            ? strtolower((string) $data['message'])
+            : '';
 
+        $status = isset($data['status']) && !is_array($data['status'])
+            ? strtolower((string) $data['status'])
+            : '';
 
-//     );
+        $haystack = $error_code . ' ' . $message . ' ' . $status;
 
-//     qp_plugin_log('****** Response Reversel ARGS Detail*******');
+        if (
+            strpos($haystack, 'timeout') !== false ||
+            strpos($haystack, 'timed out') !== false ||
+            strpos($haystack, 'curl error 28') !== false ||
+            strpos($haystack, 'operation timed out') !== false
+        ) {
+            return 'payment_timeout';
+        }
 
-//     qp_plugin_log($argsPayment);
-//     qp_plugin_log('****** Reversal Api call *******');
-//     $payment_endpoint = TEST_API_URL . 'creditcard/' . $payment_id . '/reversal';
-
-//     $responsePayment = wp_remote_post($payment_endpoint, $argsPayment);
-//     $responseBody = json_decode($responsePayment['body'], 1);
-
-//     qp_plugin_log('****** $$  Reversal Body Response*******');
-//     qp_plugin_log($responseBody);
-
-//     qp_plugin_log('****** $$  Reversal Status*******');
-//     qp_plugin_log($responseBody['status']);
-//     if ($responseBody['status'] == 'reversed') {
-
-//         change_status_to_refund($order_id);
-//     }
-//     //     add_action( 'woocommerce_order_status_cancelled', 'change_status_to_refund', 
-//     // 21, 1 );
-
-// }
-
-// function payment_detail_api_hit($payment_id, $payment, $order_id)
-// {
-//     qp_plugin_log('****** Payment Detail Api call *******');
-//     $payment_endpoint = TEST_API_URL . 'creditcard/' . $payment_id;
-//     qp_plugin_log('****** Payment Detail Api End Point*******');
-//     qp_plugin_log($payment_endpoint);
-//     // getToken($payment);
-//     // if (!empty(getToken($payment))) {
-//     $argsPayment = array(
-//         'method'      => 'GET',
-//         'timeout'     => 5,
-//         'redirection' => 5,
-//         'blocking'    => true,
-//         'headers'     => array(
-//             'Content-Type' => 'application/json',
-//             'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
-//             'Authorization' => 'Bearer ' . get_transient('qp_token')
-//         ),
-
-//     );
-
-//     qp_plugin_log('****** Response Payment ARGS Detail*******');
-
-//     qp_plugin_log($argsPayment);
-
-//     $responsePayment = wp_remote_get($payment_endpoint, $argsPayment);
-//     $responseBody = json_decode($responsePayment['body'], 1);
-
-//     qp_plugin_log('****** $$  Payment Status*******');
-//     qp_plugin_log($responseBody['status']);
-
-//     if ($responseBody['status'] == 'pending_settlement') {
-//         $user_id = get_post_meta($order_id, '_billing_email', true);
-//         reversel_api_hit($payment_id, $payment, $user_id, $order_id);
-//         return true;
-//     }
+        return $event_type;
+    }
+}
 
 
-//     // }
-//     return false;
-// }
+function qp_send_plugin_event_from_gateway_response($response, $post_fields = array())
+{
+    if (is_wp_error($response)) {
+        return qp_send_plugin_event('api_connection_failed', array(
+            'order_id'   => qp_event_safe_value($post_fields, 'order_id'),
+            'amount'     => qp_event_safe_value($post_fields, 'amount'),
+            'currency'   => qp_event_safe_value($post_fields, 'currency', 'USD'),
+            'status'     => 'wp_remote_error',
+            'message'    => $response->get_error_message(),
+            'error_code' => $response->get_error_code(),
+        ));
+    }
 
-// function refundApiHit($refund_amount, $payment, $order_id, $order, $type_refund)
-// {
+    $response_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+    $decoded = json_decode($body, true);
 
-//     qp_plugin_log('****** ####################### *******');
-//     qp_plugin_log('****** Function call RefundAPIHIT*******');
-//     qp_plugin_log($order);
+    if (!is_array($decoded)) {
+        if ($response_code >= 400) {
+            return qp_send_plugin_event('gateway_error', array(
+                'order_id'   => qp_event_safe_value($post_fields, 'order_id'),
+                'amount'     => qp_event_safe_value($post_fields, 'amount'),
+                'currency'   => qp_event_safe_value($post_fields, 'currency', 'USD'),
+                'status'     => 'http_' . $response_code,
+                'message'    => 'Gateway returned HTTP ' . $response_code . '.',
+                'error_code' => 'http_' . $response_code,
+            ));
+        }
 
-//     $payment_id = get_post_meta($order_id, 'quantumepay_payment_id', true);
+        return false;
+    }
 
-//     qp_plugin_log('****** Payment id *******');
-//     qp_plugin_log($payment_id);
+    $processor_code = isset($decoded['processor']['code']) ? sanitize_text_field($decoded['processor']['code']) : null;
+    $processor_message = isset($decoded['processor']['message']) ? sanitize_textarea_field($decoded['processor']['message']) : null;
+    $gateway_code = isset($decoded['code']) ? sanitize_key($decoded['code']) : null;
+    $gateway_status = isset($decoded['status']) ? sanitize_key($decoded['status']) : null;
 
-//     //payment detail api call
-//     $payment_check = payment_detail_api_hit($payment_id, $payment, $order_id);
+    $event_type = 'gateway_error';
 
-//     if (!$payment_check) {
+    if ($processor_code === '00' || $gateway_code === 'approval' || $gateway_status === 'pending_settlement') {
+        $event_type = 'payment_success';
+    } elseif ($gateway_status === 'declined' || $gateway_code === 'declined_by_processor') {
+        $event_type = 'payment_failed';
+    } elseif ($gateway_status === 'pending') {
+        $event_type = 'payment_pending';
+    }
 
-//         $billingData = $order['billing'];
-//         $billing_address = array('address_1' => $billingData['address_1'], 'address_2' => $billingData['address_2'], 'city' => $billingData['city'], 'state' => $billingData['state'], 'postal_code' => $billingData['postcode'], 'country_code' => $billingData['country']);
-
-
-//         $qp_ccNo            = trim($_POST['qp_ccNo']);
-//         $qp_expdate_post     = $_POST['qp_expdate'];
-//         $qp_expdate         = str_replace(' ', '', $qp_expdate_post);
-//         $exp                     = explode("/", $qp_expdate);
-//         $expiry_month        = $exp[0];
-//         $expiry_year         = $exp[1];
-//         $qp_cvv              = trim($_POST['qp_cvv']);
-
-//         $argsPayment = array(
-//             'method'      => 'POST',
-//             'timeout'     => 5,
-//             'redirection' => 5,
-//             'blocking'    => true,
-//             'headers'     => array(
-//                 'Content-Type' => 'application/json',
-//                 'X-TERMINAL-KEY' => $payment->get_option('terminal_key'),
-//                 'Authorization' => 'Bearer ' . get_transient('qp_token')
-//             ),
-
-//             'body' => wp_json_encode(array(
-//                 // 'payment_id' => $payment_id,
-//                 'amount' => $refund_amount,
-//                 // 'account' => array('first_name' => $billingData['first_name'], 'last_name' => $billingData['last_name'], 'card_security_code' => $qp_cvv, 'expiry_month' => $expiry_month, 'expiry_year' => $expiry_year, 'card_number' => $qp_ccNo, 'billing_address' => $billing_address),
-//                 // 'currency' => $order['currency'],
-
-//                 'source_ip_address' => getRealUserIp(),
-//                 'user_id' => get_post_meta($order_id, '_billing_email', true)
-//             ))
-//         );
-//         qp_plugin_log('****** Payment args*******');
-//         qp_plugin_log($argsPayment);
-//         qp_plugin_log('****** Xtermina Key*******');
-//         qp_plugin_log($payment->get_option('terminal_key'));
-
-//         // Your API integration code here for partial refund
-
-//         // https://uatpayments.quantumepay.com/creditcard/{payment_id}/refund
-//         $payment_endpoint = TEST_API_URL . 'creditcard/' . get_post_meta($order_id, 'quantumepay_payment_id', true) . '/refund';
-//         qp_plugin_log('****** End Point*******');
-//         qp_plugin_log($payment_endpoint);
-
-//         $responsePayment = wp_remote_post($payment_endpoint, $argsPayment);
-//         qp_plugin_log('****** Response Payment*******');
-//         qp_plugin_log($responsePayment);
+    return qp_send_plugin_event($event_type, array(
+        'order_id'       => qp_event_safe_value($post_fields, 'order_id'),
+        'amount'         => qp_event_safe_value($post_fields, 'amount'),
+        'currency'       => qp_event_safe_value($post_fields, 'currency', 'USD'),
+        'transaction_id' => isset($decoded['transaction_id']) ? $decoded['transaction_id'] : null,
+        'status'         => $gateway_status ?: 'http_' . $response_code,
+        'message'        => $processor_message ?: ($decoded['message'] ?? null),
+        'error_code'     => $processor_code ?: $gateway_code,
+    ));
+}
 
 
-//         $responseBody = json_decode($responsePayment['body'], 1);
-//         //    dd($responseBody);
-//         qp_plugin_log(' ===>>>> responseBody >>>>>' . $type_refund);
-//         qp_plugin_log($responseBody);
-//         qp_plugin_log('##');
+if (!function_exists('qp_send_plugin_event')) {
+    function qp_send_plugin_event($event_or_response, $data = array())
+    {
+        $dashboard_url = qp_get_dashboard_api_url();
 
-//         $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
-//         $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
-//         // $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
+        if (empty($dashboard_url)) {
+            return false;
+        }
 
+        if (is_wp_error($event_or_response) || is_array($event_or_response)) {
+            return qp_send_plugin_event_from_gateway_response($event_or_response, $data);
+        }
 
-//         // update_post_meta($order_id, $this->id . '_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
-//         // update_post_meta($order_id, $this->id . '_payment_id', $payment_id);
-//         // update_post_meta($order_id, $this->id . '_transaction_id', $transaction_id);
+        $event_type = $event_or_response;
 
-//         // if ($responseBody['processor']['message'] == 'APPROVED') {
-//         // $processor = $responseBody['processor'];
+        $event_type = sanitize_key($event_type);
 
-//         $message        = $responseBody['message']; // approved or completed
-//         $status         = $responseBody['status'];   // pending_settlement
+        if (empty($event_type)) {
+            return false;
+        }
 
-//         $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
-//         update_post_meta($order_id,  '_refund_api_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
+        $payload = array(
+            'site_url'       => home_url(),
+            'event_type'     => $event_type,
+            'order_id'       => qp_event_safe_value($data, 'order_id'),
+            'transaction_id' => qp_event_safe_value($data, 'transaction_id'),
+            'amount'         => qp_event_safe_value($data, 'amount'),
+            'currency'       => qp_event_safe_value($data, 'currency', 'USD'),
+            'status'         => qp_event_safe_value($data, 'status'),
+            'message'        => qp_event_safe_message($data, 'message'),
+            'error_code'     => qp_event_safe_value($data, 'error_code'),
+            'plugin_version' => qp_get_plugin_version(),
+        );
 
-//         qp_plugin_log($orderNote);
-//         $order_detail_object = wc_get_order($order_id);
-//         $order_detail_object->add_order_note($orderNote);
+        $payload = array_filter($payload, function ($value) {
+            return $value !== null && $value !== '';
+        });
 
-//         // qp_plugin_log('$$$$$$$ End Function $$$$$$$$$$$');
+        $endpoint = trailingslashit($dashboard_url) . 'api/plugin-events';
 
-//         // }       
+        $response = wp_remote_post($endpoint, array(
+            'method'      => 'POST',
+            'timeout'     => 1,
+            'redirection' => 0,
+            'blocking'    => false,
+            'headers'     => array(
+                'Content-Type' => 'application/json',
+            ),
+            'body' => wp_json_encode($payload),
+        ));
 
-//     } //payment_check id detail
+        return !is_wp_error($response);
+    }
+}
 
+if (!function_exists('qp_get_dashboard_api_url')) {
+    function qp_get_dashboard_api_url()
+    {
+        return 'https://phplaravel-1633779-6468974.cloudwaysapps.com/';
+    }
+}
 
-// }
+if (!function_exists('qp_normalize_plugin_event_type')) {
+    function qp_normalize_plugin_event_type($event_type, $data = array())
+    {
+        $event_type = sanitize_key($event_type);
+
+        $error_code = isset($data['error_code']) && !is_array($data['error_code'])
+            ? strtolower((string) $data['error_code'])
+            : '';
+
+        $message = isset($data['message']) && !is_array($data['message'])
+            ? strtolower((string) $data['message'])
+            : '';
+
+        $status = isset($data['status']) && !is_array($data['status'])
+            ? strtolower((string) $data['status'])
+            : '';
+
+        $haystack = $error_code . ' ' . $message . ' ' . $status;
+
+        if (
+            strpos($haystack, 'timeout') !== false ||
+            strpos($haystack, 'timed out') !== false ||
+            strpos($haystack, 'curl error 28') !== false ||
+            strpos($haystack, 'operation timed out') !== false
+        ) {
+            return 'payment_timeout';
+        }
+
+        return $event_type;
+    }
+}
+
+if (!function_exists('qp_event_safe_value')) {
+    function qp_event_safe_value($data, $key, $default = null)
+    {
+        if (!is_array($data) || !array_key_exists($key, $data)) {
+            return $default;
+        }
+
+        if (is_array($data[$key]) || is_object($data[$key])) {
+            return $default;
+        }
+
+        return sanitize_text_field((string) $data[$key]);
+    }
+}
+
+if (!function_exists('qp_event_safe_message')) {
+    function qp_event_safe_message($data, $key)
+    {
+        if (!is_array($data) || !array_key_exists($key, $data)) {
+            return null;
+        }
+
+        if (is_array($data[$key]) || is_object($data[$key])) {
+            return null;
+        }
+
+        return mb_substr(
+            sanitize_textarea_field((string) $data[$key]),
+            0,
+            1000
+        );
+    }
+}
+
+if (!function_exists('qp_get_plugin_version')) {
+    function qp_get_plugin_version()
+    {
+        if (defined('WC_QUANTUMEPAY_VERSION')) {
+            return WC_QUANTUMEPAY_VERSION;
+        }
+
+        if (defined('WC_QUANTUMEPAY_PLUGIN_VERSION')) {
+            return WC_QUANTUMEPAY_PLUGIN_VERSION;
+        }
+
+        return null;
+    }
+}
