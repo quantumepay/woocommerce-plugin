@@ -50,7 +50,7 @@ if (!function_exists('qp_show_notices')) {
         $notice_arr = get_transient($key);
         delete_transient($key);
         return $notice_arr;
-    }
+    } 
 }
 
 
@@ -176,7 +176,7 @@ if (!function_exists('qp_event_safe_path')) {
         }
 
         if (is_array($current) || is_object($current)) {
-            return $default;
+            return $default; 
         }
 
         return sanitize_text_field((string) $current);
