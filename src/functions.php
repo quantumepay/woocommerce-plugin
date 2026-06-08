@@ -158,6 +158,30 @@ if (!function_exists('qp_normalize_plugin_event_type')) {
     }
 }
 
+if (!function_exists('qp_event_safe_path')) {
+    function qp_event_safe_path($data, $path, $default = null)
+    {
+        if (!is_array($data)) {
+            return $default;
+        }
+
+        $current = $data;
+
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($current) || !array_key_exists($segment, $current)) {
+                return $default;
+            }
+
+            $current = $current[$segment];
+        }
+
+        if (is_array($current) || is_object($current)) {
+            return $default;
+        }
+
+        return sanitize_text_field((string) $current);
+    }
+}
 
 function qp_send_plugin_event_from_gateway_response($response, $post_fields = array())
 {
@@ -207,14 +231,113 @@ function qp_send_plugin_event_from_gateway_response($response, $post_fields = ar
     }
 
     return qp_send_plugin_event($event_type, array(
-        'order_id'       => qp_event_safe_value($post_fields, 'order_id'),
-        'amount'         => qp_event_safe_value($post_fields, 'amount'),
-        'currency'       => qp_event_safe_value($post_fields, 'currency', 'USD'),
-        'transaction_id' => isset($decoded['transaction_id']) ? $decoded['transaction_id'] : null,
-        'status'         => $gateway_status ?: 'http_' . $response_code,
-        'message'        => $processor_message ?: ($decoded['message'] ?? null),
-        'error_code'     => $processor_code ?: $gateway_code,
+        'order_id'            => qp_event_safe_value($post_fields, 'order_id')
+            ?: qp_event_safe_path($post_fields, 'order.order_id'),
+
+        'amount'              => qp_event_safe_value($post_fields, 'amount'),
+        'currency'            => qp_event_safe_value($post_fields, 'currency', 'USD'),
+
+        'customer_first_name' => qp_event_safe_path($post_fields, 'account.first_name'),
+        'customer_last_name'  => qp_event_safe_path($post_fields, 'account.last_name'),
+        'customer_email'      => qp_event_safe_value($post_fields, 'email'),
+
+        'transaction_id'      => isset($decoded['transaction_id']) ? $decoded['transaction_id'] : null,
+        'status'              => $gateway_status ?: 'http_' . $response_code,
+        'message'             => $processor_message ?: ($decoded['message'] ?? null),
+        'error_code'          => $processor_code ?: $gateway_code,
     ));
+}
+
+if (!function_exists('qp_get_event_order')) {
+    function qp_get_event_order($data)
+    {
+        $order_id = qp_event_safe_value($data, 'order_id');
+
+        if (empty($order_id) || !function_exists('wc_get_order')) {
+            return null;
+        }
+
+        $order = wc_get_order($order_id);
+
+        return $order ?: null;
+    }
+}
+
+if (!function_exists('qp_get_event_customer_first_name')) {
+    function qp_get_event_customer_first_name($data)
+    {
+        $value = qp_event_safe_value($data, 'customer_first_name');
+
+        if (!empty($value)) {
+            return $value;
+        }
+
+        $value = qp_event_safe_value($data, 'first_name');
+
+        if (!empty($value)) {
+            return $value;
+        }
+
+        $order = qp_get_event_order($data);
+
+        if ($order && method_exists($order, 'get_billing_first_name')) {
+            return sanitize_text_field($order->get_billing_first_name());
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('qp_get_event_customer_last_name')) {
+    function qp_get_event_customer_last_name($data)
+    {
+        $value = qp_event_safe_value($data, 'customer_last_name');
+
+        if (!empty($value)) {
+            return $value;
+        }
+
+        $value = qp_event_safe_value($data, 'last_name');
+
+        if (!empty($value)) {
+            return $value;
+        }
+
+        $order = qp_get_event_order($data);
+
+        if ($order && method_exists($order, 'get_billing_last_name')) {
+            return sanitize_text_field($order->get_billing_last_name());
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('qp_get_event_customer_email')) {
+    function qp_get_event_customer_email($data)
+    {
+        $value = qp_event_safe_value($data, 'customer_email');
+
+        if (!empty($value) && is_email($value)) {
+            return sanitize_email($value);
+        }
+
+        $value = qp_event_safe_value($data, 'email');
+
+        if (!empty($value) && is_email($value)) {
+            return sanitize_email($value);
+        }
+
+        $order = qp_get_event_order($data);
+
+        if ($order && method_exists($order, 'get_billing_email')) {
+            $email = $order->get_billing_email();
+
+            return is_email($email) ? sanitize_email($email) : null;
+        }
+
+        return null;
+    }
 }
 
 
@@ -240,16 +363,19 @@ if (!function_exists('qp_send_plugin_event')) {
         }
 
         $payload = array(
-            'site_url'       => home_url(),
-            'event_type'     => $event_type,
-            'order_id'       => qp_event_safe_value($data, 'order_id'),
-            'transaction_id' => qp_event_safe_value($data, 'transaction_id'),
-            'amount'         => qp_event_safe_value($data, 'amount'),
-            'currency'       => qp_event_safe_value($data, 'currency', 'USD'),
-            'status'         => qp_event_safe_value($data, 'status'),
-            'message'        => qp_event_safe_message($data, 'message'),
-            'error_code'     => qp_event_safe_value($data, 'error_code'),
-            'plugin_version' => qp_get_plugin_version(),
+            'site_url'            => home_url(),
+            'event_type'          => $event_type,
+            'order_id'            => qp_event_safe_value($data, 'order_id') ?: qp_event_safe_path($data, 'order.order_id'),
+            'transaction_id'      => qp_event_safe_value($data, 'transaction_id'),
+            'customer_first_name' => qp_event_safe_value($data, 'customer_first_name') ?: qp_event_safe_path($data, 'account.first_name'),
+            'customer_last_name'  => qp_event_safe_value($data, 'customer_last_name') ?: qp_event_safe_path($data, 'account.last_name'),
+            'customer_email'      => qp_event_safe_value($data, 'customer_email') ?: qp_event_safe_value($data, 'email'),
+            'amount'              => qp_event_safe_value($data, 'amount'),
+            'currency'            => qp_event_safe_value($data, 'currency', 'USD'),
+            'status'              => qp_event_safe_value($data, 'status'),
+            'message'             => qp_event_safe_message($data, 'message'),
+            'error_code'          => qp_event_safe_value($data, 'error_code'),
+            'plugin_version'      => qp_get_plugin_version(),
         );
 
         $payload = array_filter($payload, function ($value) {
