@@ -402,7 +402,7 @@ if (!function_exists('qp_send_plugin_event')) {
 if (!function_exists('qp_get_dashboard_api_url')) {
     function qp_get_dashboard_api_url()
     {
-        return 'https://phplaravel-1633779-6468974.cloudwaysapps.com/';
+        return 'https://phplaravel-1635190-6477597.cloudwaysapps.com/';
     }
 }
 
