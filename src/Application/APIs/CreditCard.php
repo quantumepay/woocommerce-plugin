@@ -20,7 +20,7 @@ class CreditCard extends BaseApi
             'amount' => $post_data['total_amount'],
             'currency' => $post_data['currency'],
             'email' => $post_data['email'],
-            'phone_number' => $post_data['phone'],
+            'phone_number' => qep_normalize_us_phone($post_data['phone']),
             'order' => array(
                 'order_id' => strval($post_data['order_id']),
                 'description' => 'payment for #' . $post_data['order_id']

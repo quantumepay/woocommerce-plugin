@@ -381,7 +381,7 @@ class CreditCard extends \WC_Payment_Gateway_CC
             'total_amount' => $order_data['total'],
             'currency' => $order_data['currency'],
             'email' => $billingData['email'],
-            'phone' => $billingData['phone'],
+            'phone' => qep_normalize_us_phone($billingData['phone']),
             'order_id' => strval($order_id),
         );
 

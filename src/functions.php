@@ -486,3 +486,180 @@ if (!function_exists('qp_get_plugin_version')) {
         return null;
     }
 }
+
+
+// Phone bug
+
+
+/**
+ * Configure the WooCommerce billing phone field.
+ */
+add_filter('woocommerce_checkout_fields', function (array $fields): array {
+    if (!isset($fields['billing']['billing_phone'])) {
+        return $fields;
+    }
+
+    $fields['billing']['billing_phone']['label']       = 'Phone number';
+    $fields['billing']['billing_phone']['placeholder'] = '(949) 555-1234';
+    $fields['billing']['billing_phone']['required']    = true;
+    $fields['billing']['billing_phone']['type']        = 'tel';
+
+    $fields['billing']['billing_phone']['custom_attributes'] = [
+        'inputmode'    => 'numeric',
+        'autocomplete' => 'tel-national',
+        'maxlength'    => '14',
+    ];
+
+    return $fields;
+});
+
+
+/**
+ * Add the US phone prefix and formatting mask.
+ */
+add_action('wp_footer', function (): void {
+    if (!is_checkout() || is_order_received_page()) {
+        return;
+    }
+    ?>
+    <style>
+        #billing_phone_field .woocommerce-input-wrapper {
+            position: relative;
+            display: block;
+        }
+
+        #billing_phone_field .qep-phone-prefix {
+            position: absolute;
+            top: 50%;
+            left: 14px;
+            z-index: 2;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #475467;
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        #billing_phone_field #billing_phone {
+            padding-left: 42px;
+        }
+    </style>
+
+    <script>
+        (function ($) {
+            function getDigits(value) {
+                let digits = String(value || '').replace(/\D/g, '');
+
+                /*
+                 * Convert 1XXXXXXXXXX into XXXXXXXXXX.
+                 */
+                if (digits.length === 11 && digits.charAt(0) === '1') {
+                    digits = digits.substring(1);
+                }
+
+                return digits.substring(0, 10);
+            }
+
+            function formatPhone(value) {
+                const digits = getDigits(value);
+
+                if (digits.length < 4) {
+                    return digits;
+                }
+
+                if (digits.length < 7) {
+                    return '(' + digits.substring(0, 3) + ') ' +
+                        digits.substring(3);
+                }
+
+                return '(' + digits.substring(0, 3) + ') ' +
+                    digits.substring(3, 6) + '-' +
+                    digits.substring(6, 10);
+            }
+
+            function initializePhoneField() {
+                const $phone = $('#billing_phone');
+
+                if (!$phone.length) {
+                    return;
+                }
+
+                const $wrapper = $phone.closest('.woocommerce-input-wrapper');
+
+                if (!$wrapper.find('.qep-phone-prefix').length) {
+                    $wrapper.prepend(
+                        '<span class="qep-phone-prefix" aria-hidden="true">+1</span>'
+                    );
+                }
+
+                $phone.val(formatPhone($phone.val()));
+            }
+
+            $(document.body).on('input', '#billing_phone', function () {
+                const cursorPosition = this.selectionStart;
+                const oldLength = this.value.length;
+
+                this.value = formatPhone(this.value);
+
+                const newLength = this.value.length;
+                const nextPosition = Math.max(
+                    0,
+                    cursorPosition + (newLength - oldLength)
+                );
+
+                this.setSelectionRange(nextPosition, nextPosition);
+            });
+
+            $(document.body).on('blur change', '#billing_phone', function () {
+                this.value = formatPhone(this.value);
+            });
+
+            /*
+             * WooCommerce may redraw the checkout fields after AJAX updates.
+             */
+            $(document.body).on('updated_checkout', initializePhoneField);
+
+            $(initializePhoneField);
+        })(jQuery);
+    </script>
+    <?php
+});
+
+
+/**
+ * Normalize the phone before WooCommerce creates the order.
+ */
+add_filter(
+    'woocommerce_checkout_posted_data',
+    function (array $data): array {
+        if (empty($data['billing_phone'])) {
+            return $data;
+        }
+
+        $digits = preg_replace(
+            '/\D+/',
+            '',
+            (string) $data['billing_phone']
+        );
+
+        if (strlen($digits) === 11 && substr($digits, 0, 1) === '1') {
+            $digits = substr($digits, 1);
+        }
+
+        $data['billing_phone'] = substr($digits, 0, 10);
+
+        return $data;
+    }
+);
+
+
+function qep_normalize_us_phone(string $phone): string
+{
+    $digits = preg_replace('/\D+/', '', $phone);
+
+    if (strlen($digits) === 11 && substr($digits, 0, 1) === '1') {
+        $digits = substr($digits, 1);
+    }
+
+    return substr($digits, 0, 10);
+}
