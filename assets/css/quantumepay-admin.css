@@ -1,0 +1,1181 @@
+/* =========================================================
+   Quantum ePay - WooCommerce Admin Settings
+   ========================================================= */
+
+/*
+ * Hide the original WooCommerce settings before JavaScript
+ * rebuilds the interface. This prevents the old form flashing
+ * for a moment during page load.
+ */
+body.woocommerce_page_wc-settings #mainform>table.form-table {
+    display: none;
+}
+
+body.woocommerce_page_wc-settings #mainform>p.submit {
+    display: none;
+}
+
+.qep-settings-app {
+    --qep-blue: #006bff;
+    --qep-blue-dark: #0056d6;
+    --qep-blue-soft: #eef6ff;
+    --qep-green: #16a34a;
+    --qep-green-soft: #ecfdf3;
+    --qep-border: #e2e8f0;
+    --qep-border-dark: #cbd5e1;
+    --qep-text: #172033;
+    --qep-muted: #64748b;
+    --qep-bg: #f8fafc;
+    --qep-white: #ffffff;
+
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+
+    width: 100%;
+    max-width: 1200px;
+
+    margin-top: 16px;
+
+    border: 1px solid var(--qep-border);
+    border-radius: 16px;
+
+    background: var(--qep-white);
+
+    overflow: hidden;
+
+    box-sizing: border-box;
+
+    box-shadow:
+        0 8px 30px rgba(15, 23, 42, 0.05);
+}
+
+
+/* =========================================================
+   Sidebar
+   ========================================================= */
+
+.qep-settings-sidebar {
+    min-width: 0;
+
+    padding: 16px 12px;
+
+    background: #f7f9fc;
+
+    border-right: 1px solid var(--qep-border);
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-nav {
+    display: flex;
+    flex-direction: column;
+
+    gap: 7px;
+
+    width: 100%;
+
+    margin: 0;
+    padding: 0;
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-nav__item {
+    appearance: none;
+
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+
+    gap: 11px;
+
+    margin: 0;
+
+    padding: 10px 12px;
+
+    border: 0;
+    border-radius: 9px;
+
+    background: transparent;
+
+    color: #526076;
+
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    box-sizing: border-box;
+
+    transition:
+        background 0.18s ease,
+        color 0.18s ease;
+}
+
+
+.qep-settings-nav__item:hover {
+    background: #edf2f7;
+
+    color: var(--qep-text);
+}
+
+
+.qep-settings-nav__item.is-active {
+    color: var(--qep-blue);
+
+    background: #eaf3ff;
+}
+
+
+.qep-settings-nav__item .dashicons {
+    flex: 0 0 auto;
+
+    width: 19px;
+    height: 19px;
+
+    font-size: 19px;
+}
+
+
+/* =========================================================
+   Main Content
+   ========================================================= */
+
+.qep-settings-content {
+    min-width: 0;
+
+    padding: 16px;
+
+    background: var(--qep-white);
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-panel {
+    display: none;
+}
+
+
+.qep-settings-panel.is-active {
+    display: block;
+}
+
+
+.qep-panel-header {
+    margin-bottom: 16px;
+}
+
+
+.qep-panel-header h2 {
+    margin: 0 0 6px;
+
+    color: var(--qep-text);
+
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+
+.qep-panel-header p {
+    max-width: 760px;
+
+    margin: 0;
+
+    color: var(--qep-muted);
+
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+
+/* =========================================================
+   Cards
+   ========================================================= */
+
+.qep-card {
+    min-width: 0;
+
+    border: 1px solid var(--qep-border);
+    border-radius: 13px;
+
+    background: var(--qep-white);
+
+    box-sizing: border-box;
+
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+
+/* =========================================================
+   Gateway Controls
+   ========================================================= */
+
+.qep-gateway-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.qep-control-card {
+    padding: 16px;
+}
+
+
+/* =========================================================
+   Credentials
+   ========================================================= */
+
+.qep-credentials-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 14px;
+}
+
+
+.qep-credential-card {
+    min-width: 0;
+
+    padding: 16px;
+}
+
+
+.qep-credential-card--live {
+    border-top: 3px solid var(--qep-green);
+}
+
+
+.qep-credential-card--test {
+    border-top: 3px solid var(--qep-blue);
+}
+
+
+.qep-credential-header {
+    display: flex;
+
+    align-items: flex-start;
+    justify-content: space-between;
+
+    gap: 16px;
+
+    margin-bottom: 14px;
+}
+
+
+.qep-credential-heading {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 12px;
+
+    min-width: 0;
+}
+
+
+.qep-credential-icon {
+    flex: 0 0 auto;
+
+    width: 38px;
+    height: 38px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 9px;
+}
+
+
+.qep-credential-icon--live {
+    background: var(--qep-green-soft);
+
+    color: var(--qep-green);
+}
+
+
+.qep-credential-icon--test {
+    background: var(--qep-blue-soft);
+
+    color: var(--qep-blue);
+}
+
+
+.qep-credential-icon .dashicons {
+    width: 19px;
+    height: 19px;
+
+    font-size: 19px;
+}
+
+
+.qep-credential-heading h3 {
+    margin: 0 0 4px;
+
+    color: var(--qep-text);
+
+    font-size: 16px;
+    line-height: 1.35;
+}
+
+
+.qep-credential-heading p {
+    margin: 0;
+
+    color: var(--qep-muted);
+
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+.qep-mode-badge {
+    flex: 0 0 auto;
+
+    padding: 5px 8px;
+
+    border-radius: 999px;
+
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+
+.qep-mode-badge--live {
+    color: #166534;
+
+    background: #dcfce7;
+}
+
+
+.qep-mode-badge--test {
+    color: #1d4ed8;
+
+    background: #dbeafe;
+}
+
+
+/* =========================================================
+   Settings Tables
+   ========================================================= */
+
+.qep-settings-table {
+    width: 100%;
+
+    margin: 0;
+
+    border-collapse: collapse;
+
+    table-layout: fixed;
+}
+
+
+.qep-settings-table tbody,
+.qep-settings-table tr {
+    width: 100%;
+}
+
+
+.qep-settings-table tr:not(:last-child) {
+    border-bottom: 1px solid #f0f2f5;
+}
+
+
+.qep-settings-table th {
+    width: 175px;
+
+    padding: 10px 14px 10px 0;
+
+    color: #293548;
+
+    font-weight: 600;
+
+    vertical-align: middle;
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-table td {
+    min-width: 0;
+
+    padding: 9px 0;
+
+    vertical-align: middle;
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-table input[type="text"],
+.qep-settings-table input[type="password"],
+.qep-settings-table input[type="email"],
+.qep-settings-table textarea {
+    width: 100% !important;
+    max-width: none !important;
+
+    min-height: 36px;
+
+    margin: 0;
+
+    padding: 6px 10px;
+
+    border: 1px solid var(--qep-border-dark);
+    border-radius: 8px;
+
+    background: var(--qep-white);
+
+    color: var(--qep-text);
+
+    box-shadow: none;
+
+    box-sizing: border-box;
+}
+
+
+.qep-settings-table textarea {
+    min-height: 72px;
+
+    resize: vertical;
+}
+
+
+.qep-settings-table input[type="text"]:focus,
+.qep-settings-table input[type="password"]:focus,
+.qep-settings-table input[type="email"]:focus,
+.qep-settings-table textarea:focus {
+    border-color: var(--qep-blue);
+
+    box-shadow:
+        0 0 0 1px var(--qep-blue);
+}
+
+
+.qep-settings-table .description {
+    margin-top: 4px;
+
+    color: var(--qep-muted);
+
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   Password visibility
+   ========================================================= */
+
+.qep-password-wrap {
+    position: relative;
+
+    display: block;
+
+    width: 100%;
+}
+
+
+.qep-password-wrap input {
+    padding-right: 46px !important;
+}
+
+
+.qep-password-toggle {
+    position: absolute;
+
+    top: 50%;
+    right: 5px;
+
+    transform: translateY(-50%);
+
+    width: 34px;
+    height: 34px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: 0;
+    border-radius: 6px;
+
+    background: transparent;
+
+    color: #64748b;
+
+    cursor: pointer;
+}
+
+
+.qep-password-toggle:hover,
+.qep-password-toggle:focus {
+    background: #f1f5f9;
+
+    color: var(--qep-text);
+
+    outline: none;
+
+    box-shadow: none;
+}
+
+
+/* =========================================================
+   Information boxes
+   ========================================================= */
+
+.qep-info-box {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 9px;
+
+    margin-top: 20px;
+
+    padding: 12px 13px;
+
+    border-radius: 8px;
+
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+.qep-info-box--live {
+    color: #166534;
+
+    background: #f0fdf4;
+
+    border: 1px solid #bbf7d0;
+}
+
+
+.qep-info-box--test {
+    color: #1e40af;
+
+    background: #eff6ff;
+
+    border: 1px solid #bfdbfe;
+}
+
+
+/* =========================================================
+   Checkout
+   ========================================================= */
+
+.qep-checkout-card {
+    padding: 16px;
+}
+
+
+/* =========================================================
+   Save
+   ========================================================= */
+
+.qep-save-bar {
+    display: flex;
+
+    align-items: center;
+    justify-content: flex-end;
+
+    gap: 14px;
+
+    margin-top: 16px;
+
+    padding-top: 12px;
+
+    border-top: 1px solid var(--qep-border);
+}
+
+
+.qep-save-status {
+    display: none;
+
+    color: var(--qep-muted);
+
+    font-size: 13px;
+}
+
+
+.qep-save-status.is-visible {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 6px;
+}
+
+
+.qep-save-status.is-success {
+    color: #15803d;
+}
+
+
+.qep-save-status.is-error {
+    color: #b91c1c;
+}
+
+
+.qep-save-button {
+    min-height: 40px !important;
+
+    padding: 7px 18px !important;
+
+    border-radius: 7px !important;
+}
+
+
+.qep-save-button.is-saving {
+    pointer-events: none;
+
+    opacity: 0.72;
+}
+
+
+/* =========================================================
+   Support
+   ========================================================= */
+
+.qep-support-intro {
+    padding: 16px;
+
+    margin-bottom: 18px;
+}
+
+
+.qep-support-intro__inner {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 16px;
+}
+
+
+.qep-support-icon {
+    flex: 0 0 auto;
+
+    width: 44px;
+    height: 44px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    color: var(--qep-blue);
+
+    background: var(--qep-blue-soft);
+}
+
+
+.qep-support-intro h3 {
+    margin: 0 0 7px;
+
+    color: var(--qep-text);
+
+    font-size: 17px;
+}
+
+
+.qep-support-intro p {
+    max-width: 680px;
+
+    margin: 0;
+
+    color: var(--qep-muted);
+
+    line-height: 1.6;
+}
+
+
+.qep-support-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 16px;
+}
+
+
+.qep-contact-card {
+    display: flex;
+
+    align-items: center;
+
+    gap: 14px;
+
+    padding: 16px;
+
+    color: var(--qep-text);
+
+    text-decoration: none;
+
+    transition:
+        border-color 0.18s ease,
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+
+.qep-contact-card:hover {
+    color: var(--qep-text);
+
+    border-color: #b6c5d8;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+
+.qep-contact-card__icon {
+    flex: 0 0 auto;
+
+    width: 40px;
+    height: 40px;
+
+    display: inline-flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 9px;
+
+    color: var(--qep-blue);
+
+    background: var(--qep-blue-soft);
+}
+
+
+.qep-contact-card__text {
+    min-width: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+}
+
+
+.qep-contact-card__label {
+    color: var(--qep-muted);
+
+    font-size: 11px;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.04em;
+}
+
+
+.qep-contact-card strong {
+    overflow-wrap: anywhere;
+
+    font-size: 14px;
+}
+
+
+.qep-contact-card__arrow {
+    margin-left: auto;
+
+    color: #94a3b8;
+}
+
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+    .qep-settings-app {
+        grid-template-columns:
+            200px minmax(0, 1fr);
+    }
+
+    .qep-settings-content {
+        padding: 16px;
+    }
+
+}
+
+
+@media (max-width: 1050px) {
+
+    .qep-credentials-grid {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+
+@media (max-width: 782px) {
+
+    .qep-settings-app {
+        display: block;
+
+        width: 100%;
+
+        border-radius: 12px;
+    }
+
+
+    .qep-settings-sidebar {
+        padding: 10px;
+
+        border-right: 0;
+
+        border-bottom: 1px solid var(--qep-border);
+
+        overflow-x: auto;
+    }
+
+
+    .qep-settings-nav {
+        display: grid;
+
+        grid-template-columns:
+            repeat(3, minmax(155px, 1fr));
+
+        min-width: 520px;
+    }
+
+
+    .qep-settings-nav__item {
+        justify-content: center;
+
+        text-align: center;
+    }
+
+
+    .qep-settings-content {
+        padding: 16px;
+    }
+
+
+    .qep-gateway-controls,
+    .qep-support-grid {
+        grid-template-columns: 1fr;
+    }
+
+
+    .qep-settings-table,
+    .qep-settings-table tbody,
+    .qep-settings-table tr,
+    .qep-settings-table th,
+    .qep-settings-table td {
+        display: block;
+
+        width: 100%;
+
+        box-sizing: border-box;
+    }
+
+
+    .qep-settings-table th {
+        padding: 10px 0 4px;
+    }
+
+
+    .qep-settings-table td {
+        padding: 0 0 10px;
+    }
+
+
+    .qep-credential-header {
+        flex-direction: column;
+    }
+
+
+    .qep-save-bar {
+        flex-direction: column;
+
+        align-items: stretch;
+    }
+
+
+    .qep-save-button {
+        width: 100%;
+    }
+
+
+    .qep-save-status {
+        justify-content: center;
+    }
+
+}
+
+
+@media (max-width: 520px) {
+
+    .qep-settings-content {
+        padding: 16px;
+    }
+
+
+    .qep-credential-card,
+    .qep-checkout-card,
+    .qep-control-card,
+    .qep-support-intro,
+    .qep-contact-card {
+        padding: 16px;
+    }
+
+
+    .qep-support-intro__inner {
+        flex-direction: column;
+    }
+
+}
+
+/* =========================================================
+   WooCommerce / WordPress Admin Override Fixes
+   Scoped ONLY to Quantum ePay settings
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   Reset old WooCommerce form-table fieldset behavior
+   --------------------------------------------------------- */
+
+.qep-settings-app .form-table td fieldset {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    min-width: 0;
+}
+
+
+.qep-settings-app .form-table td fieldset label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 1.4 !important;
+    vertical-align: middle !important;
+}
+
+
+/* ---------------------------------------------------------
+   Checkbox / Radio Alignment
+   --------------------------------------------------------- */
+
+.qep-settings-app input[type="checkbox"],
+.qep-settings-app input[type="radio"] {
+    margin: 0 !important;
+    flex: 0 0 auto;
+
+    vertical-align: middle !important;
+}
+
+
+.qep-settings-app .qep-control-card td {
+    vertical-align: middle !important;
+}
+
+
+.qep-settings-app .qep-control-card th {
+    vertical-align: middle !important;
+}
+
+
+/* ---------------------------------------------------------
+   WooCommerce Help Tip "?" Alignment
+   --------------------------------------------------------- */
+
+.qep-settings-app .woocommerce-help-tip {
+    position: static !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 16px !important;
+    height: 16px !important;
+
+    margin: 0 6px 0 0 !important;
+
+    padding: 0 !important;
+
+    vertical-align: middle !important;
+
+    line-height: 16px !important;
+
+    float: none !important;
+
+    transform: none !important;
+}
+
+
+/*
+ * WooCommerce normally positions the help icon relative
+ * to the label/table layout. We are using our own layout.
+ */
+.qep-settings-app .form-table th .woocommerce-help-tip,
+.qep-settings-app .form-table td .woocommerce-help-tip {
+    position: relative !important;
+
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+}
+
+
+/* ---------------------------------------------------------
+   Keep label + help icon aligned
+   --------------------------------------------------------- */
+
+.qep-settings-app .qep-settings-table th {
+    vertical-align: middle !important;
+}
+
+
+.qep-settings-app .qep-settings-table th>label {
+    display: inline-flex !important;
+    align-items: center !important;
+
+    margin: 0 !important;
+
+    line-height: 1.4 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Remove old WP form spacing leaking into our custom table
+   --------------------------------------------------------- */
+
+.qep-settings-app .form-table th,
+.qep-settings-app .form-table td {
+    margin: 0 !important;
+}
+
+
+.qep-settings-app .form-table td p {
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+
+/* ---------------------------------------------------------
+   Inputs should stay vertically centered
+   --------------------------------------------------------- */
+
+.qep-settings-app .qep-settings-table td>input[type="text"],
+.qep-settings-app .qep-settings-table td>input[type="password"],
+.qep-settings-app .qep-settings-table td>input[type="email"],
+.qep-settings-app .qep-settings-table td>textarea,
+.qep-settings-app .qep-settings-table td>.qep-password-wrap {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Password field / Eye Button
+   --------------------------------------------------------- */
+
+.qep-settings-app .qep-password-wrap {
+    display: flex;
+    align-items: center;
+}
+
+
+.qep-settings-app .qep-password-toggle {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Prevent WooCommerce labels from introducing weird spacing
+   --------------------------------------------------------- */
+
+.qep-settings-app label {
+    box-sizing: border-box;
+}
+
+
+.qep-settings-app fieldset label br {
+    display: none;
+}
+
+.qep-settings-app .form-table .titledesc {
+    padding: 10px 14px 10px 0 !important;
+}    
+
+.qep-settings-sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+.qep-settings-nav {
+    flex: 1;
+}
+
+.qep-settings-version {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    margin-top: 16px;
+    padding: 14px 12px 2px;
+
+    border-top: 1px solid var(--qep-border);
+
+    color: var(--qep-muted);
+
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.qep-settings-version strong {
+    color: var(--qep-text);
+    font-size: 11px;
+    font-weight: 600;
+}
+.qep-settings-app .qep-settings-table select {
+    width: 100%;
+    max-width: 100%;
+    min-height: 36px;
+    margin: 0;
+    border-color: var(--qep-border-dark);
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+.qep-settings-app .qep-settings-table td .description {
+    margin: 4px 0 0;
+    line-height: 1.4;
+}
+
+@media (max-width: 782px) {
+    .qep-settings-app .form-table .titledesc {
+        padding: 10px 0 4px !important;
+    }
+}

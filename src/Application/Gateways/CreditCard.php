@@ -8,9 +8,14 @@ use WP_Error;
 class CreditCard extends \WC_Payment_Gateway_CC
 {
     public $testmode,
-        $terminal_key,
-        $timeout_notification_recipients,
-        $notices;
+    $terminal_key,
+    $client_id,
+    $client_secret,
+    $test_terminal_key,
+    $test_client_id,
+    $test_client_secret,
+    $timeout_notification_recipients,
+    $notices;
 
     public function __construct()
     {
@@ -45,6 +50,11 @@ class CreditCard extends \WC_Payment_Gateway_CC
         $this->testmode = 'yes' === $this->get_option('testmode');
 
         $this->terminal_key = $this->get_option('terminal_key');
+        $this->client_id = $this->get_option('client_id');
+        $this->client_secret = $this->get_option('client_secret');
+        $this->test_terminal_key = $this->get_option('test_terminal_key');
+        $this->test_client_id = $this->get_option('test_client_id');
+        $this->test_client_secret = $this->get_option('test_client_secret');
         $this->timeout_notification_recipients = $this->get_option('timeout_notification_recipients');
 
         $this->check_environment();
@@ -54,11 +64,15 @@ class CreditCard extends \WC_Payment_Gateway_CC
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
 
         add_action('wp_enqueue_scripts', array($this, 'payment_scripts'));
+        add_action('woocommerce_cart_calculate_fees', array($this, 'add_service_fee'));
+        add_action('woocommerce_checkout_update_order_review', array($this, 'update_service_fee_payment_method'));
+        add_action('woocommerce_refund_created', array($this, 'complete_refund_record'), 10, 2);
 
         add_action('woocommerce_scheduled_subscription_payment_' . QP_GATEWAY_ID, array($this, 'scheduled_subscription_payment'), 10, 2);
         add_action('woocommerce_before_thankyou', array($this, 'maybe_show_pending_payment_message'), 1);
         // add_action('woocommerce_api_quantumepay_hook', array($this, 'quantumepay_hook'));
     }
+
 
     public function admin_notices()
     {
@@ -91,11 +105,38 @@ class CreditCard extends \WC_Payment_Gateway_CC
         if ($environment_warning && is_plugin_active(plugin_basename(__FILE__))) {
             $this->add_admin_notice('qp_bad_environment', 'error', $environment_warning);
         }
-        $terminal_key = $this->terminal_key;
+        $is_settings_page = isset($_GET['page'], $_GET['section'])
+            && 'wc-settings' === $_GET['page']
+            && $this->id === $_GET['section'];
 
-        if (empty($terminal_key) && !(isset($_GET['page'], $_GET['section']) && 'wc-settings' === $_GET['page'] && $this->id === $_GET['section'])) {
-            $setting_link = admin_url('admin.php?page=wc-settings&tab=checkout&section=' . $this->id);
-            $this->add_admin_notice('qp_prompt_connect', 'notice notice-warning', 'Qoin Payment Gateway will not work until you <a href="%s">configure your api data (terminal key) </a>.');
+        if (!$this->testmode && !$is_settings_page) {
+            $missing_credentials = array();
+
+            if (empty($this->terminal_key)) {
+                $missing_credentials[] = 'X-TERMINAL-KEY';
+            }
+
+            if (empty($this->client_id)) {
+                $missing_credentials[] = 'Client ID';
+            }
+
+            if (empty($this->client_secret)) {
+                $missing_credentials[] = 'Client Secret';
+            }
+
+            if (!empty($missing_credentials)) {
+                $setting_link = admin_url('admin.php?page=wc-settings&tab=checkout&section=' . $this->id);
+
+                $this->add_admin_notice(
+                    'qp_prompt_connect',
+                    'notice notice-warning',
+                    sprintf(
+                        'Quantum ePay is not fully configured for Live Mode. Please <a href="%s">complete your API credentials</a>. Missing: %s.',
+                        esc_url($setting_link),
+                        esc_html(implode(', ', $missing_credentials))
+                    )
+                );
+            }
         }
 
         if (!is_ssl() && $this->testmode != 'yes') {
@@ -132,8 +173,8 @@ class CreditCard extends \WC_Payment_Gateway_CC
 
         $this->form_fields = array(
             'enabled' => array(
-                'title'       => 'Enable/Disable',
-                'label'       => 'Enable Qoin Payment Gateway',
+                'title'       => 'Enable Gateway',
+                'label'       => 'Enable Quantum ePay',
                 'type'        => 'checkbox',
                 'description' => '',
                 'default'     => 'no'
@@ -148,8 +189,31 @@ class CreditCard extends \WC_Payment_Gateway_CC
             'description' => array(
                 'title'       => 'Description',
                 'type'        => 'textarea',
-                'description' => 'This controls the description which the user sees during checkout.',
+                'description' => 'Describe what the user sees during checkout.',
                 'default'     => 'Pay with your credit card via our payment gateway.',
+                'desc_tip'    => true,
+            ),
+            'service_fee_mode' => array(
+                'title' => 'Service fee', 'type' => 'select', 'default' => 'none',
+                'options' => array('gateway' => 'Use gateway settings (pending API integration)',
+                    'custom' => 'Use a different service fee on this website', 'none' => 'Do not apply a service fee'),
+                'description' => 'Only the website-specific fee is available now. Gateway settings do not add a fee until API integration is available.',
+            ),
+            'service_fee_label' => array(
+                'title' => 'Service fee label', 'type' => 'text', 'default' => 'Service fee',
+                'description' => 'Displayed in checkout, order totals, and order emails.',
+            ),
+            'service_fee_type' => array(
+                'title' => 'Custom fee type', 'type' => 'select', 'default' => 'percentage',
+                'options' => array('percentage' => 'Percentage', 'fixed' => 'Fixed amount'),
+            ),
+            'service_fee_amount' => array(
+                'title' => 'Custom fee amount', 'type' => 'text', 'default' => '0',
+                'description' => 'Enter a percentage or an amount in the store currency. Percentage uses the discounted product subtotal, excluding shipping and tax. Free product subtotals are fee-free.',
+            ),
+            'service_fee_taxable' => array(
+                'title' => 'Fee tax', 'type' => 'checkbox', 'default' => 'no',
+                'label' => 'Apply the standard tax class to the service fee',
             ),
             'testmode' => array(
                 'title'       => 'Test mode',
@@ -159,10 +223,45 @@ class CreditCard extends \WC_Payment_Gateway_CC
                 'desc_tip'    => false,
                 'default'     => 'yes'
             ),
-
             'terminal_key' => array(
                 'title'       => 'X-TERMINAL-KEY',
-                'type'        => 'text'
+                'type'        => 'text',
+                'description' => 'Enter the X-TERMINAL-KEY provided for your Quantum ePay live merchant account.',
+                'desc_tip'    => true,
+            ),
+            'client_id' => array(
+                'title'       => 'Client ID',
+                'type'        => 'qep_secret',
+                'description' => 'Enter the Client ID provided for your Quantum ePay live merchant account.',
+                'placeholder' => 'Enter Client ID',
+                'desc_tip'    => true,
+            ),
+            'client_secret' => array(
+                'title'       => 'Client Secret',
+                'type'        => 'qep_secret',
+                'description' => 'Enter the Client Secret provided for your Quantum ePay live merchant account.',
+                'placeholder' => 'Enter Client Secret',
+                'desc_tip'    => true,
+            ),
+            'test_terminal_key' => array(
+                'title'       => 'Test X-TERMINAL-KEY',
+                'type'        => 'text',
+                'description' => 'Optional. Leave blank to use the built-in Quantum ePay test X-TERMINAL-KEY.',
+                'desc_tip'    => true,
+            ),
+            'test_client_id' => array(
+                'title'       => 'Test Client ID',
+                'type'        => 'qep_secret',
+                'description' => 'Optional. Leave blank to use the built-in Quantum ePay test Client ID.',
+                'placeholder' => 'Enter Test Client ID',
+                'desc_tip'    => true,
+            ),
+            'test_client_secret' => array(
+                'title'       => 'Test Client Secret',
+                'type'        => 'qep_secret',
+                'description' => 'Optional. Leave blank to use the built-in Quantum ePay test Client Secret.',
+                'placeholder' => 'Enter Test Client Secret',
+                'desc_tip'    => true,
             ),
             'timeout_notification_recipients' => array(
                 'title'       => 'Timeout Notification Recipients',
@@ -171,8 +270,76 @@ class CreditCard extends \WC_Payment_Gateway_CC
                 'default'     => '',
                 'desc_tip'    => true,
             ),
-
         );
+    }
+
+
+    public function generate_qep_secret_html($key, $data)
+    {
+        $field_key = $this->get_field_key($key);
+
+        $defaults = array(
+            'title'       => '',
+            'class'       => '',
+            'css'         => '',
+            'placeholder' => '',
+            'description' => '',
+            'desc_tip'    => false,
+        );
+
+        $data = wp_parse_args($data, $defaults);
+
+        $has_saved_value = !empty($this->get_option($key));
+
+        $placeholder = $has_saved_value
+            ? 'Saved — enter a new value to replace'
+            : $data['placeholder'];
+
+        ob_start();
+        ?>
+        <tr valign="top">
+            <th scope="row" class="titledesc">
+                <label for="<?php echo esc_attr($field_key); ?>">
+                    <?php echo wp_kses_post($data['title']); ?>
+                    <?php echo $this->get_tooltip_html($data); ?>
+                </label>
+            </th>
+            <td class="forminp">
+                <fieldset>
+                    <legend class="screen-reader-text">
+                        <span><?php echo wp_kses_post($data['title']); ?></span>
+                    </legend>
+
+                    <input
+                        class="input-text regular-input <?php echo esc_attr($data['class']); ?>"
+                        type="password"
+                        name="<?php echo esc_attr($field_key); ?>"
+                        id="<?php echo esc_attr($field_key); ?>"
+                        value=""
+                        placeholder="<?php echo esc_attr($placeholder); ?>"
+                        autocomplete="new-password"
+                        data-qep-saved="<?php echo $has_saved_value ? '1' : '0'; ?>"
+                        style="<?php echo esc_attr($data['css']); ?>"
+                    />
+
+                    <?php echo $this->get_description_html($data); ?>
+                </fieldset>
+            </td>
+        </tr>
+        <?php
+
+        return ob_get_clean();
+    }
+
+    public function validate_qep_secret_field($key, $value)
+    {
+        $value = trim((string) $value);
+
+        if ('' === $value) {
+            return (string) $this->get_option($key);
+        }
+
+        return sanitize_text_field($value);
     }
 
 
@@ -205,29 +372,61 @@ class CreditCard extends \WC_Payment_Gateway_CC
         }
         wp_enqueue_style('quantumepay-style', WC_QUANTUMEPAY_PLUGIN_URL .  '/assets/css/quantumepay.css', '', WC_QUANTUMEPAY_VERSION . time());
         wp_enqueue_script('quantumepay-js', WC_QUANTUMEPAY_PLUGIN_URL . '/assets/js/quantumepay.js', array('jquery'), WC_QUANTUMEPAY_VERSION . time());
+        wp_add_inline_script('quantumepay-js', "jQuery(function($){ $(document.body).off('change.qepServiceFee', 'input[name=payment_method]').on('change.qepServiceFee', 'input[name=payment_method]', function(){ $(document.body).trigger('update_checkout'); }); });");
+    }
+
+    public function validate_service_fee_amount_field($key, $value)
+    {
+        $amount = wc_format_decimal($value);
+        if (!is_numeric($amount) || !is_finite((float) $amount) || (float) $amount < 0) {
+            throw new \Exception('Service fee amount must be a number greater than or equal to zero.');
+        }
+        return $amount;
+    }
+
+    public function update_service_fee_payment_method($posted_data)
+    {
+        if (!WC()->session || !is_string($posted_data)) return;
+        parse_str($posted_data, $data);
+        if (isset($data['payment_method']) && is_string($data['payment_method'])) {
+            WC()->session->set('chosen_payment_method', sanitize_text_field($data['payment_method']));
+        }
+    }
+
+    public function add_service_fee($cart)
+    {
+        if ((is_admin() && !wp_doing_ajax()) || $this->enabled !== 'yes' || !WC()->session) return;
+        if ($this->get_option('service_fee_mode', 'none') !== 'custom') return;
+        if (WC()->session->get('chosen_payment_method') !== $this->id) return;
+        $subtotal = max(0, (float) $cart->get_cart_contents_total());
+        if ($subtotal <= 0) return;
+        $value = wc_format_decimal($this->get_option('service_fee_amount', '0'));
+        if (!is_numeric($value) || !is_finite((float) $value) || (float) $value <= 0) return;
+        $type = $this->get_option('service_fee_type', 'percentage');
+        if (!in_array($type, array('percentage', 'fixed'), true)) return;
+        $amount = round($type === 'fixed' ? (float) $value : $subtotal * (float) $value / 100, wc_get_price_decimals());
+        if (!is_finite($amount) || $amount <= 0) return;
+        $label = sanitize_text_field($this->get_option('service_fee_label', 'Service fee'));
+        $cart->fees_api()->add_fee(array('id' => 'qep_service_fee', 'name' => $label ?: 'Service fee',
+            'amount' => $amount, 'taxable' => $this->get_option('service_fee_taxable', 'no') === 'yes', 'tax_class' => ''));
     }
 
     public function validate_fields()
     {
-        $gateway_id = $this->id;
-        if (empty($_POST[$gateway_id . '-card-number'])) {
-            wc_add_notice('Empty card number', 'error');
-            return false;
+        $fields = array('-card-number' => 'Please enter your card number.',
+            '-card-expiry' => 'Please enter your card expiration date.', '-card-cvc' => 'Please enter your card security code.');
+        $messages = array();
+        foreach ($fields as $suffix => $message) {
+            $key = $this->id . $suffix;
+            if (!isset($_POST[$key]) || !is_string($_POST[$key]) || trim(wp_unslash($_POST[$key])) === '') $messages[] = $message;
         }
-        if (empty($_POST[$gateway_id . '-card-expiry'])) {
-            wc_add_notice('Empty expire date', 'error');
-            return false;
+        if (!$this->testmode && (empty($this->terminal_key) || empty($this->client_id) || empty($this->client_secret))) {
+            $messages[] = 'The payment gateway is unavailable. Please contact the store.';
         }
-        if (empty($_POST[$gateway_id . '-card-cvc'])) {
-            wc_add_notice('Empty CVV', 'error');
-            return false;
-        }
-        if (empty($this->terminal_key) && !$this->testmode) {
-            wc_add_notice('Please Provide a Xterminal Key', 'error');
-            return false;
-        }
-
-        return true;
+        if (!$messages) return true;
+        foreach ($messages as $message) wc_add_notice($message, 'error');
+        qp_send_plugin_event('gateway_error', array('message' => implode(' ', $messages), 'error_code' => 'checkout_validation'));
+        return false;
     }
 
     public function maybe_show_pending_payment_message($order_id)
@@ -244,22 +443,9 @@ class CreditCard extends \WC_Payment_Gateway_CC
         echo '<style>.woocommerce-order-overview,.woocommerce-order-details,.woocommerce-customer-details,.woocommerce-thankyou-order-received{display:none!important}.quantumepay-pending-payment-message{text-align:center;max-width:720px;margin:48px auto;padding:48px 24px}.quantumepay-pending-payment-message img{max-width:220px;height:auto;margin:0 auto 28px;display:block}.quantumepay-pending-payment-message h2{font-size:32px;line-height:1.2;margin:0 0 16px}.quantumepay-pending-payment-message p{font-size:18px;line-height:1.5;margin:0}</style>';
         echo '<div class="quantumepay-pending-payment-message">';
         echo '<img src="' . esc_url(WC_QUANTUMEPAY_PLUGIN_URL . '/assets/img/logo_quantumepay.png') . '" alt="Quantum ePay">';
-        echo '<h2>' . esc_html__('Thank you for your order!', 'woocommerce-gateway-quantum') . '</h2>';
-        echo '<p>' . esc_html__('Your payment is being processed, we will be in contact with you soon.', 'woocommerce-gateway-quantum') . '</p>';
+        echo '<h2>' . esc_html__('Payment confirmation pending', 'woocommerce-gateway-quantum') . '</h2>';
+        echo '<p>' . esc_html__('We could not confirm your payment result. Please contact the store and do not pay again until your payment has been checked.', 'woocommerce-gateway-quantum') . '</p>';
         echo '</div>';
-    }
-
-    private function is_timeout_payment_response($responsePayment, $responseBody)
-    {
-        if (!empty($responsePayment['qp_wp_error_code']) || !empty($responsePayment['qp_wp_error_message'])) {
-            $error_text = strtolower($responsePayment['qp_wp_error_code'] . ' ' . $responsePayment['qp_wp_error_message']);
-
-            return strpos($error_text, 'timed out') !== false
-                || strpos($error_text, 'timeout') !== false
-                || strpos($error_text, 'operation timed out') !== false;
-        }
-
-        return empty($responseBody) || !is_array($responseBody);
     }
 
     private function get_timeout_notification_recipients()
@@ -300,332 +486,312 @@ class CreditCard extends \WC_Payment_Gateway_CC
         $message .= "Admin URL: " . admin_url('post.php?post=' . $order->get_id() . '&action=edit') . "\n\n";
 
         if (!empty($responsePayment['qp_wp_error_message'])) {
-            $message .= "Gateway error: " . $responsePayment['qp_wp_error_message'] . "\n";
+            $message .= "Gateway error: " . qep_safe_error_text($responsePayment['qp_wp_error_message']) . "\n";
         }
 
         wp_mail($recipients, $subject, $message);
     }
 
+    private function create_api_client()
+    {
+        return new APIsCreditCard($this->terminal_key, $this->testmode, $this->client_id, $this->client_secret,
+            $this->test_terminal_key, $this->test_client_id, $this->test_client_secret);
+    }
+
+    private function payment_failure($order, $message, $code = 'checkout_validation', $log = true)
+    {
+        if ($log) qp_send_plugin_event('gateway_error', array('order_id' => $order->get_id(),
+            'amount' => $order->get_total(), 'currency' => $order->get_currency(), 'message' => $message, 'error_code' => $code));
+        $order->add_order_note('Payment failed: ' . $message);
+        wc_add_notice($message, 'error');
+        return array('result' => 'failure', 'redirect' => '', 'message' => $message);
+    }
+
     public function process_payment($order_id)
     {
-        $gateway_id = $this->id;
-        global $woocommerce;
-
         $order = wc_get_order($order_id);
-
+        if (!$order) {
+            wc_add_notice('Your order could not be found. Please refresh checkout.', 'error');
+            return array('result' => 'failure');
+        }
+        if ($order->is_paid()) return array('result' => 'success', 'redirect' => $this->get_return_url($order));
+        if ($order->get_meta('_quantumepay_pending_timeout')) {
+            return $this->payment_failure($order, 'Your previous payment needs review. Please contact the store before trying again.', 'payment_needs_review');
+        }
+        if (!$order->has_status(array('pending', 'failed', 'on-hold'))) return $this->payment_failure($order, 'This order cannot accept another payment. Please contact the store.', 'invalid_order_status');
         $lock_key = '_quantumepay_processing_lock';
-
-        if ($order->is_paid()) {
-            return array(
-                'result' => 'success',
-                'redirect' => $this->get_return_url($order)
-            );
+        $option_lock = 'qep_payment_lock_' . $order_id;
+        if ($order->get_meta($lock_key) || !add_option($option_lock, time(), '', false)) {
+            return $this->payment_failure($order, 'Payment is already processing or needs review. Please contact the store if this continues.', 'payment_locked');
         }
-
-        if ($order->get_meta($lock_key)) {
-            wc_add_notice('Payment is already processing. Please wait.', 'error');
-
-            return array(
-                'result'   => 'failure',
-                'redirect' => ''
-            );
-        }
-
         $order->update_meta_data($lock_key, time());
         $order->save();
-
-        $order_data = $order->get_data();
-
-        $billingData = $order_data['billing'];
-        if (empty($billingData) and !empty($order_data['shipping'])) $billingData = $order_data['shipping'];
-        if (empty($billingData)) {
-            $order->delete_meta_data($lock_key);
-            $order->save();
-
-            wc_add_notice('Empty billing address', 'error');
-            return;
-        }
-
-        if (empty($billingData['first_name']) or empty($billingData['last_name']) or empty($billingData['address_1']) or empty($billingData['postcode'])) {
-            $order->delete_meta_data($lock_key);
-            $order->save();
-
-            return;
-        }
-
-        $qp_ccNo            = trim($_POST[$gateway_id . '-card-number']);
-        $qp_expdate_post     = $_POST[$gateway_id . '-card-expiry'];
-        $qp_expdate         = str_replace(' ', '', $qp_expdate_post);
-        $exp                     = explode("/", $qp_expdate);
-        $expiry_month        = $exp[0];
-        $expiry_year         = $exp[1];
-        $qp_cvv              = trim($_POST[$gateway_id . '-card-cvc']);
-
-        $billing_address = array(
-            'address_1' => $billingData['address_1'],
-            'address_2' => $billingData['address_2'],
-            'city' => $billingData['city'],
-            'state' => $billingData['state'],
-            'postal_code' => $billingData['postcode'],
-            'country_code' => $billingData['country']
-        );
-
-        $post_data = array(
-            'first_name' => $billingData['first_name'],
-            'last_name' => $billingData['last_name'],
-            'qp_cvv' => $qp_cvv,
-            'expiry_month' => $expiry_month,
-            'expiry_year' => $expiry_year,
-            'qp_ccNo' => $qp_ccNo,
-            'billing_address' => $billing_address,
-            'total_amount' => $order_data['total'],
-            'currency' => $order_data['currency'],
-            'email' => $billingData['email'],
-            'phone' => qep_normalize_us_phone($billingData['phone']),
-            'order_id' => strval($order_id),
-        );
-
-        $cardPayment = new APIsCreditCard($this->terminal_key, $this->testmode);
-        // $responsePayment = $cardPayment->processPayment($post_data);
-
-        if (strtolower(trim($billingData['email'])) === 'justybryle.ramos@quantumepay.com') {
-            $responsePayment = array(
-                'body' => '',
-                'qp_wp_error_code' => 'simulated_timeout',
-                'qp_wp_error_message' => 'Simulated timeout for testing',
-            );
-        } else {
-            $responsePayment = $cardPayment->processPayment($post_data);
-        }
-        
-
-        $responseBody = $responsePayment['body'];
-        $responseBody = qp_json_to_arr($responseBody, true);
-
-        if ($this->is_timeout_payment_response($responsePayment, $responseBody)) {
-            $order->update_meta_data('_quantumepay_pending_timeout', time());
-            $order->update_status('on-hold', 'Error with payment due to timeout. Payment was initiated but the gateway response was not confirmed. Please check Qoin dashboard before asking the customer to pay again.');
-            $order->save();
-
-            $this->send_timeout_payment_notification($order, $responsePayment);
-
-            $woocommerce->cart->empty_cart();
-
-            return array(
-                'result'   => 'success',
-                'redirect' => add_query_arg('quantumepay_pending_payment', '1', $this->get_return_url($order)),
-            );
-        }
-
-        if (!empty($responseBody['message']) && $responseBody['message'] == 'approved or completed') {
-            $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
-            $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
-
-            update_post_meta($order_id, $this->id . '_payment', qp_arr_to_json($responseBody));
-            update_post_meta($order_id, $this->id . '_payment_id', $payment_id);
-            update_post_meta($order_id, $this->id . '_transaction_id', $transaction_id);
-
-            $message        = $responseBody['message'];
-
-            $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
-
-
-            $order->add_order_note($orderNote);
-
-            $order->delete_meta_data($lock_key);
-            $order->save();
-
-            $order->payment_complete();
-            wc_reduce_stock_levels($order_id);
-            $woocommerce->cart->empty_cart();
-
-            return array(
-                'result' => 'success',
-                'redirect' => $this->get_return_url($order)
-            );
-        } else {
-            $errMsg = '';
-            if (!empty($responseBody['status'])) $errMsg .= $responseBody['status'] . ' / ';
-            if (!empty($responseBody['title'])) $errMsg .= $responseBody['title'] . ' / ';
-            if (!empty($responseBody['message'])) $errMsg .= $responseBody['message'] . ' / ';
-
-            if (!empty($responseBody['processor']['message'])) $errMsg .= " ** " . $responseBody['processor']['message'] . '** / ';
-
-            if (!empty($responseBody['errors'])) {
-                foreach ($responseBody['errors'] as $err) {
-                    $errMsg .= $err['field'] . ' - ' . $err['message'] . "<br>\r\n";
-                }
+        $unknown = false;
+        $sent = false;
+        try {
+            $total = (float) $order->get_total();
+            if ($total === 0.0) {
+                $order->add_order_note('No payment required: the final order total is zero.');
+                $order->payment_complete();
+                if (WC()->cart) WC()->cart->empty_cart();
+                return array('result' => 'success', 'redirect' => $this->get_return_url($order));
             }
-
-
-            $error_message_to_show = '';
-
-            if ($responseBody['code'] == 'declined_by_processor') {
-                $error_message_to_show = 'Payment declined by processor. Please double check the CVC & Card Expiration Date provided and try again.';
+            if (!is_finite($total) || $total < 0.01) return $this->payment_failure($order, 'The minimum card payment is $0.01. Please contact the store.', 'amount_below_minimum');
+            $billing = $order->get_data()['billing'];
+            foreach (array('first_name', 'last_name', 'address_1', 'postcode') as $field) {
+                if (empty($billing[$field])) return $this->payment_failure($order, 'Please complete your billing name, address, and ZIP code.');
             }
-            if ($responseBody['code'] == 'avs_code_not_permitted') {
-                $error_message_to_show = 'Payment declined by processor. Please double check the Zip Code provided and try again.';
+            $read = function ($key) {
+                return isset($_POST[$key]) && is_string($_POST[$key]) ? trim(wp_unslash($_POST[$key])) : '';
+            };
+            $number = preg_replace('/[\s-]+/', '', $read($this->id . '-card-number'));
+            $expiry = preg_replace('/\s+/', '', $read($this->id . '-card-expiry'));
+            $cvv = $read($this->id . '-card-cvc');
+            if (!preg_match('/^\d{12,19}$/', $number)) return $this->payment_failure($order, 'Please check your card number and try again.', 'invalid_card_number');
+            if (!preg_match('/^(0?[1-9]|1[0-2])\/(\d{2}|\d{4})$/', $expiry, $matches)) return $this->payment_failure($order, 'Please check your card expiration date and try again.', 'invalid_expiry');
+            $year = strlen($matches[2]) === 2 ? '20' . $matches[2] : $matches[2];
+            if ((int) ($year . sprintf('%02d', $matches[1])) < (int) gmdate('Ym')) return $this->payment_failure($order, 'Your card has expired. Please use another card.', 'expired_card');
+            if (!preg_match('/^\d{3,4}$/', $cvv)) return $this->payment_failure($order, 'Please check your card security code and try again.', 'invalid_security_code');
+            $data = array('first_name' => $billing['first_name'], 'last_name' => $billing['last_name'],
+                'qp_ccNo' => $number, 'qp_cvv' => $cvv, 'expiry_month' => sprintf('%02d', $matches[1]), 'expiry_year' => $year,
+                'billing_address' => array('address_1' => $billing['address_1'], 'address_2' => $billing['address_2'],
+                    'city' => $billing['city'], 'state' => $billing['state'], 'postal_code' => $billing['postcode'], 'country_code' => $billing['country']),
+                'total_amount' => $order->get_total(), 'currency' => $order->get_currency(), 'email' => $billing['email'],
+                'phone' => $billing['phone'], 'order_id' => (string) $order_id);
+            $sent = true;
+            $response = $this->create_api_client()->processPayment($data);
+            $result = $response['qep_result'];
+            if ($result['outcome'] === 'failed') {
+                $order->add_order_note($result['message'] . "\nCodes: " . $result['error_code']);
+                return $this->payment_failure($order, $result['customer_message'], $result['error_code'], false);
             }
-
-            foreach ($responseBody['errors'] as $error) {
-                if ($error['code'] == 'invalid_card_number' && $error['field'] == 'account.card_number') {
-                    $error_message_to_show = 'Invalid card number provided. Please try again.';
-                    break;
-                }
-                if ($error['code'] == 'invalid_value' && $error['field'] == 'account.expiry_month') {
-                    $error_message_to_show = 'Payment declined by processor. Please double check the CVC & Card Expiration Date provided and try again.';
-                    break;
-                }
-                if ($error['code'] == 'invalid_length' && $error['field'] == 'phone_number') {
-                    $error_message_to_show = 'Invalid phone number provided. Please try again.';
-                    break;
-                }
+            if ($result['outcome'] !== 'approved') {
+                $unknown = true;
+                $order->update_meta_data('_quantumepay_pending_timeout', time());
+                $order->update_status('on-hold', 'Payment result is unconfirmed. Check Qoin before retrying. ' . $result['message']);
+                $order->save();
+                $this->send_timeout_payment_notification($order, $response);
+                if (WC()->cart) WC()->cart->empty_cart();
+                return array('result' => 'success', 'redirect' => $this->get_return_url($order));
             }
-
-            $order->delete_meta_data($lock_key);
+            $order->update_meta_data($this->id . '_payment_id', $result['payment_id']);
+            $order->update_meta_data($this->id . '_transaction_id', $result['transaction_id']);
+            $order->delete_meta_data('_quantumepay_pending_timeout');
+            $order->add_order_note('Gateway approved payment. Payment ID: ' . $result['payment_id'] . '. Transaction ID: ' . $result['transaction_id']);
             $order->save();
-
-            wc_add_notice($error_message_to_show, 'error');
-            $order->add_order_note("Error with payment. $error_message_to_show");
-
-            return array(
-                'result'   => 'failure',
-                'redirect' => '',
-                'message' => $error_message_to_show
-            );
+            $order->payment_complete($result['transaction_id']);
+            if (WC()->cart) WC()->cart->empty_cart();
+            return array('result' => 'success', 'redirect' => $this->get_return_url($order));
+        } catch (\Throwable $error) {
+            $unknown = $sent;
+            $message = $sent ? 'We could not confirm your payment result. Please contact the store before trying again.' : 'Your payment could not be processed. Please contact the store.';
+            qp_send_plugin_event('gateway_error', array('order_id' => $order_id, 'message' => 'Payment processing exception: ' . get_class($error), 'error_code' => 'processing_exception'));
+            if ($unknown) {
+                $order->update_meta_data('_quantumepay_pending_timeout', time());
+                $order->update_status('on-hold', $message);
+                $order->save();
+            }
+            return $this->payment_failure($order, $message, 'processing_exception', false);
+        } finally {
+            delete_option($option_lock);
+            if (!$unknown) {
+                $order->delete_meta_data($lock_key);
+                $order->save();
+            }
         }
     }
 
     public function scheduled_subscription_payment($amount_to_charge, $renewal_order)
     {
         $result = $this->process_subscription_payment($renewal_order, $amount_to_charge);
-        if (is_wp_error($result)) {
-            \WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($renewal_order);
-        } else {
-            \WC_Subscriptions_Manager::process_subscription_payments_on_order($renewal_order);
-        }
+        if ($renewal_order->get_meta('_quantumepay_pending_timeout') || (is_wp_error($result) && in_array($result->get_error_code(), array('qep_payment_locked', 'qep_unknown'), true))) return;
+        if (is_wp_error($result)) \WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($renewal_order);
+        else \WC_Subscriptions_Manager::process_subscription_payments_on_order($renewal_order);
     }
 
     public function process_subscription_payment($renewal_order, $amount_to_charge)
     {
-        $order_id = $renewal_order->get_id();
-        $subscriptions = wcs_get_subscriptions_for_order($order_id, ['order_type' => 'any']);
-        foreach ($subscriptions as $subscriptionID => $subscriptionObj) {
-
-            $parent_order = $subscriptionObj->get_parent();
-            break;
-        }
-        // qp_dd($renewal_order, false);
-        // qp_dd($parent_order, false);
-
-
-        $payment_id = get_post_meta($parent_order->get_id(), $this->id . '_payment_id', true);
-
-
-        $currency = $renewal_order->get_currency();
-        $user_id = $parent_order->get_billing_email();
-        // qp_dd($user_id);
-        $post_data = array(
-            'amount' => $amount_to_charge,
-            'currency' => $currency,
-            'credential_on_file' => array(
-                'initiated_by' => 'merchant'
-            ),
-            'source_ip_address' => qp_get_user_ip(),
-            'user_id' => $user_id
-        );
-        $cardPayment = new APIsCreditCard($this->terminal_key, $this->testmode);
-        $responseBody = $cardPayment->processRebill($payment_id, $post_data);
-        if ($responseBody)
-            if ($responseBody['message'] == 'approved or completed') {
-                $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
-                $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
-
-                update_post_meta($order_id, $this->id . '_payment', qp_arr_to_json($responseBody));
-                update_post_meta($order_id, $this->id . '_payment_id', $payment_id);
-                update_post_meta($order_id, $this->id . '_transaction_id', $transaction_id);
-
-                $message        = $responseBody['message']; // approved or completed
-
-                $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
-
-                // wc_add_notice($orderNote, 'success');
-
-                $renewal_order->add_order_note($orderNote);
-
-                // if (!$this->testmode) {
-                $renewal_order->payment_complete();
-                wc_reduce_stock_levels($order_id);
-
-                return array(
-                    'result' => 'success',
-                );
-            } else {
-                $errMsg = '';
-                if (!empty($responseBody['status'])) $errMsg .= $responseBody['status'] . ' / ';
-                if (!empty($responseBody['title'])) $errMsg .= $responseBody['title'] . ' / ';
-                if (!empty($responseBody['message'])) $errMsg .= $responseBody['message'] . ' / ';
-
-                if (!empty($responseBody['processor']['message'])) $errMsg .= " ** " . $responseBody['processor']['message'] . '** / ';
-
-                if (!empty($responseBody['errors'])) {
-                    //$errMsg .= print_r($responseBody['errors'],1);
-                    foreach ($responseBody['errors'] as $err) {
-                        $errMsg .= $err['field'] . ' - ' . $err['message'] . "<br>\r\n";
-                    }
-                }
-                $error_message_to_show = '';
-                // qp_dd($responseBody['errors'][0]['code']);
-                if ($responseBody['code'] == 'insufficient_funds') {
-                    $error_message_to_show = 'The account does not have sufficient funds to process the payment.';
-                }
-                $renewal_order->add_order_note("Error with payment. $error_message_to_show");
-                $subscriptionObj->add_order_note("Error with payment. $error_message_to_show");
-
-                return new \WP_Error('', $error_message_to_show);
+        $id = $renewal_order->get_id();
+        $lock = 'qep_payment_lock_' . $id;
+        if (!add_option($lock, time(), '', false)) return new \WP_Error('qep_payment_locked', 'Renewal payment is processing.');
+        $started = false;
+        try {
+            $renewal_order = wc_get_order($id);
+            if (!$renewal_order) return new \WP_Error('invalid_order', 'Renewal order could not be found.');
+            if ($renewal_order->get_meta('_quantumepay_processing_lock')) return new \WP_Error('qep_unknown', 'A previous payment needs review before retrying.');
+            $renewal_order->update_meta_data('_quantumepay_processing_lock', time());
+            $renewal_order->save();
+            $started = true;
+            return $this->process_subscription_payment_locked($renewal_order, $amount_to_charge);
+        } catch (\Throwable $error) {
+            if ($renewal_order && $started) {
+                $renewal_order->update_meta_data('_quantumepay_pending_timeout', time());
+                $renewal_order->update_status('on-hold', 'Renewal processing was interrupted. Check Qoin before retrying.');
+                $renewal_order->save();
             }
+            qp_send_plugin_event('gateway_error', array('order_id' => $id, 'error_code' => 'renewal_exception', 'message' => 'Renewal exception: ' . get_class($error)));
+            return new \WP_Error('qep_unknown', 'Renewal payment needs manual review.');
+        } finally {
+            if ($renewal_order && $started && !$renewal_order->get_meta('_quantumepay_pending_timeout')) {
+                $renewal_order->delete_meta_data('_quantumepay_processing_lock');
+                $renewal_order->save();
+            }
+            delete_option($lock);
+        }
+    }
+
+    private function process_subscription_payment_locked($renewal_order, $amount_to_charge)
+    {
+        if ($renewal_order->is_paid()) return array('result' => 'success');
+        if (!$renewal_order->has_status(array('pending', 'failed', 'on-hold'))) return new \WP_Error('invalid_order_status', 'This renewal cannot accept another payment.');
+        if ($renewal_order->get_meta('_quantumepay_pending_timeout')) return new \WP_Error('qep_unknown', 'Renewal payment needs manual review.');
+        if (is_numeric($amount_to_charge) && (float) $amount_to_charge === 0.0) {
+            $renewal_order->add_order_note('No renewal payment required: the amount due is zero.');
+            $renewal_order->payment_complete();
+            return array('result' => 'success');
+        }
+        if (!is_numeric($amount_to_charge) || !is_finite((float) $amount_to_charge) || (float) $amount_to_charge < 0.01) {
+            $message = 'The minimum card payment is $0.01.';
+            qp_send_plugin_event('gateway_error', array('order_id' => $renewal_order->get_id(), 'message' => $message, 'error_code' => 'amount_below_minimum'));
+            return new \WP_Error('amount_below_minimum', $message);
+        }
+        $subscriptions = wcs_get_subscriptions_for_order($renewal_order->get_id(), array('order_type' => 'any'));
+        $subscription = reset($subscriptions);
+        $parent = $subscription ? $subscription->get_parent() : false;
+        $payment_id = $parent ? $parent->get_meta($this->id . '_payment_id') : '';
+        if (!$payment_id) {
+            $message = 'Subscription payment cannot be processed: the original gateway payment ID is missing.';
+            qp_send_plugin_event('gateway_error', array('order_id' => $renewal_order->get_id(), 'message' => $message, 'error_code' => 'missing_payment_id'));
+            return new \WP_Error('qep_missing_payment_id', $message);
+        }
+        $result = $this->create_api_client()->processRebill($payment_id, array('amount' => $amount_to_charge,
+            'currency' => $renewal_order->get_currency(), 'credential_on_file' => array('initiated_by' => 'merchant'),
+            'source_ip_address' => qp_get_user_ip(), 'user_id' => $parent->get_billing_email(), 'order_id' => $renewal_order->get_id()));
+        if (is_wp_error($result)) {
+            $renewal_order->add_order_note($result->get_error_message());
+            $subscription->add_order_note($result->get_error_message());
+            if ($result->get_error_code() === 'qep_unknown') {
+                $renewal_order->update_meta_data('_quantumepay_pending_timeout', time());
+                $renewal_order->update_status('on-hold', 'Renewal outcome is unknown. Check Qoin before retrying.');
+                $renewal_order->save();
+            }
+            return $result;
+        }
+        $renewal_order->update_meta_data($this->id . '_payment_id', $result['payment_id'] ?? '');
+        $renewal_order->update_meta_data($this->id . '_transaction_id', $result['transaction_id'] ?? '');
+        $renewal_order->save();
+        $renewal_order->payment_complete($result['transaction_id'] ?? '');
+        return array('result' => 'success');
     }
 
     public function process_refund($order_id, $amount = null, $reason = '')
     {
-        // Get the order object
+        $lock = 'qep_refund_lock_' . $order_id;
+        if (!add_option($lock, time(), '', false)) return new \WP_Error('qep_refund_locked', 'A refund is already being processed for this order. Check Qoin before trying again.');
+        $order = null;
+        $started = false;
+        $confirmed = false;
+        try {
+            $order = wc_get_order($order_id);
+            if (!$order || $order->get_payment_method() !== $this->id) return new \WP_Error('invalid_order', 'This order cannot be refunded through Quantum ePay.');
+            if ($order->get_meta('_qep_refund_in_progress')) return new \WP_Error('qep_refund_review', 'A previous refund could not be confirmed. Check Qoin or contact support before trying again.');
+            $order->update_meta_data('_qep_refund_in_progress', time());
+            $order->save();
+            $started = true;
+            $result = $this->process_refund_locked($order_id, $amount, $reason);
+            if (is_wp_error($result)) $result = $this->merchant_refund_error($result, $order);
+            if ($result === true) {
+                $confirmed = true;
+                $order->update_meta_data('_qep_refund_pending_record', (string) $amount);
+                $order->save();
+            }
+            return $result;
+        } catch (\Throwable $error) {
+            if ($order && $started) {
+                $order->update_meta_data('_qep_refund_review', time());
+                $order->save();
+            }
+            qp_send_plugin_event('gateway_error', array('order_id' => $order_id, 'error_code' => 'refund_exception', 'message' => 'Refund exception: ' . get_class($error)));
+            return new \WP_Error('qep_unknown', 'We could not confirm the refund. Check Qoin or contact support before trying again to avoid issuing it twice.');
+        } finally {
+            if (!$confirmed) {
+                if ($order && $started && !$order->get_meta('_qep_refund_review')) {
+                    $order->delete_meta_data('_qep_refund_in_progress');
+                    $order->save();
+                }
+                delete_option($lock);
+            }
+        }
+    }
+
+    private function merchant_refund_error($error, $order)
+    {
+        $code = $error->get_error_code();
+        $detail = qep_safe_error_text($error->get_error_message());
+        if (function_exists('wc_get_logger')) {
+            wc_get_logger()->error('Refund failed: ' . $code . '; ' . $detail,
+                array('source' => 'quantumepay-refunds', 'order_id' => $order->get_id()));
+        }
+        qp_send_plugin_event('gateway_error', array('order_id' => $order->get_id(), 'currency' => $order->get_currency(),
+            'status' => 'refund_failed', 'error_code' => $code, 'message' => $detail));
+        $messages = array(
+            'qep_missing_payment_id' => 'No Quantum ePay payment is recorded for this order, so an automatic refund is unavailable. If you collected payment elsewhere, refund it through that payment provider.',
+            'invalid_amount' => 'Enter a refund amount greater than zero and no higher than the amount available to refund.',
+            'qep_partial_reversal' => 'This payment is still processing. A partial refund will be available after it settles.',
+            'qep_unknown_settlement' => 'We could not confirm whether this payment is ready for a refund. Check the payment in Qoin or contact support before trying again.',
+            'qep_refund_review' => 'A previous refund could not be confirmed. Check Qoin or contact support before trying again.',
+            'qep_unknown' => 'We could not confirm the refund. Check Qoin or contact support before trying again to avoid issuing it twice.',
+        );
+        $message = $messages[$code] ?? 'The refund could not be completed. Check the payment in Qoin or contact support for help.';
+        $order->add_order_note($message);
+        return new \WP_Error($code, $message, $error->get_error_data());
+    }
+
+    public function complete_refund_record($refund_id, $args)
+    {
+        if (empty($args['refund_payment']) || empty($args['order_id'])) return;
+        $order = wc_get_order($args['order_id']);
+        $refund = wc_get_order($refund_id);
+        if (!$order || !$refund || !$refund->get_refunded_payment() || $order->get_payment_method() !== $this->id) return;
+        $amount = $order->get_meta('_qep_refund_pending_record');
+        if ($amount === '' || round((float) $amount, wc_get_price_decimals()) !== round((float) $refund->get_amount(), wc_get_price_decimals())) return;
+        $order->delete_meta_data('_qep_refund_pending_record');
+        $order->delete_meta_data('_qep_refund_in_progress');
+        $order->save();
+        delete_option('qep_refund_lock_' . $order->get_id());
+    }
+
+    private function process_refund_locked($order_id, $amount = null, $reason = '')
+    {
         $order = wc_get_order($order_id);
-
-        // Check if the order was paid with this payment gateway
-        // if ($order->get_payment_method() !== 'custom_payment') {
-        //     return new WP_Error('invalid_order', __('Invalid order for refund.', 'text-domain'));
-        // }
-        $cardPayment = new APIsCreditCard($this->terminal_key, $this->testmode);
-        $payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
-        $user_id = get_post_meta($order_id, '_billing_email', true);
-        $pendingSettlement = $cardPayment->isPaymentSettled($payment_id);
-        $refund_result = true;
-        if (!$pendingSettlement) {
-            $post_data = array(
-                'user_id' => $user_id,
-                'order_id' => $order_id
-            );
-            $cardPayment->processReversal($payment_id, $post_data);
-            $refund_result = false;
+        if (!$order || $order->get_payment_method() !== $this->id) return new \WP_Error('invalid_order', 'This order cannot be refunded through Quantum ePay.');
+        if ($order->get_meta('_qep_refund_review')) return new \WP_Error('qep_refund_review', 'A previous refund has an unknown result. Check Qoin before retrying.');
+        $reported_remaining = (float) $order->get_remaining_refund_amount();
+        $captured_remaining = method_exists('\\WooQuantum\\App', 'consumeRefundBalance')
+            ? \WooQuantum\App::consumeRefundBalance($order_id, $amount) : null;
+        $remaining = $captured_remaining === null ? $reported_remaining : $captured_remaining;
+        $invalid_amount = $amount === null || !is_numeric($amount) || !is_finite((float) $amount)
+            || (float) $amount <= 0 || round((float) $amount, wc_get_price_decimals()) > round($remaining, wc_get_price_decimals());
+        if ($invalid_amount) {
+            return new \WP_Error('invalid_amount', 'Enter an explicit refund amount greater than zero and within the remaining refundable total.');
         }
-        if ($refund_result === true) {
-            $post_data = array(
-                'amount' => $amount,
-                'order_id' => $order_id,
-                'user_id' => $user_id
-            );
-            $cardPayment->processRefund($payment_id, $post_data);
-
-            $order->add_order_note(
-                sprintf(
-                    __('Refunded %s via ' . $this->method_title . ' Payment Gateway.', ''),
-                    wc_price($amount)
-                )
-            );
-            return true;
-        } else {
-            return new \WP_Error('refund_failed', __('Refund processing via ' . $this->method_title . ' failed because transaction is in settlement state, order marked as cancelled. Click okay to continue, then refresh the page.', ''));
+        $api = $this->create_api_client();
+        $payment_id = $order->get_meta($this->id . '_payment_id');
+        $settled = $api->isPaymentSettled($payment_id, array('order_id' => $order_id, 'currency' => $order->get_currency()));
+        if (is_wp_error($settled)) return $settled;
+        if (!$settled && round((float) $amount, wc_get_price_decimals()) !== round($remaining, wc_get_price_decimals())) {
+            return new \WP_Error('qep_partial_reversal', 'A partial refund cannot use a full reversal. Wait for settlement, then retry.');
         }
+        $user = wp_get_current_user();
+        $data = array('amount' => $amount, 'order_id' => $order_id, 'currency' => $order->get_currency(),
+            'user_id' => $user->exists() ? (string) $user->ID : 'woocommerce');
+        $result = $settled ? $api->processRefund($payment_id, $data) : $api->processReversal($payment_id, $data);
+        if (is_wp_error($result)) {
+            if ($result->get_error_code() === 'qep_unknown') { $order->update_meta_data('_qep_refund_review', time()); $order->save(); }
+            return $result;
+        }
+        $order->add_order_note(($settled ? 'Refund' : 'Reversal') . ' confirmed by gateway. Transaction ID: ' . sanitize_text_field($result['transaction_id'] ?? ''));
+        return true;
     }
 
     // public function quantumepay_hook()

@@ -24,7 +24,7 @@ class PluginUpdater
 
     public function check_for_update($transient)
     {
-        if (empty($transient->checked[$this->plugin_basename])) {
+        if (!is_object($transient) || empty($transient->checked[$this->plugin_basename])) {
             return $transient;
         }
 
@@ -53,7 +53,7 @@ class PluginUpdater
             return $result;
         }
 
-        if (empty($args->slug) || $args->slug !== dirname($this->plugin_basename)) {
+        if (!is_object($args) || empty($args->slug) || $args->slug !== dirname($this->plugin_basename)) {
             return $result;
         }
 
@@ -72,64 +72,78 @@ class PluginUpdater
             'download_link' => $release['download_url'],
             'sections' => array(
                 'description' => 'Accept credit card payments with Qoin.',
-                'changelog' => !empty($release['body']) ? nl2br($release['body']) : '',
+                'changelog' => !empty($release['body']) ? wp_kses_post(nl2br($release['body'])) : '',
             ),
         );
+    }
+
+    private function valid_version($version)
+    {
+        return is_string($version) && strlen($version) <= 100
+            && preg_match('/^\d+\.\d+(?:\.\d+)?(?:[-+][A-Za-z0-9.-]+)?$/D', $version) === 1;
+    }
+
+    private function valid_package_url($url)
+    {
+        if (!is_string($url) || strlen($url) > 2048 || preg_match('/[\x00-\x20\x7f]/', $url)) return false;
+        $parts = wp_parse_url($url);
+        if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || strtolower($parts['host'] ?? '') !== 'github.com'
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['port']) || isset($parts['query']) || isset($parts['fragment'])) return false;
+        $path = $parts['path'] ?? '';
+        if (preg_match('/(?:^|\/)\.{1,2}(?:\/|$)/', rawurldecode($path))) return false;
+        $prefix = '/' . $this->repo . '/';
+        return strpos($path, $prefix . 'releases/download/') === 0 || strpos($path, $prefix . 'archive/refs/tags/') === 0;
     }
 
     private function get_latest_release()
     {
         $cache_key = 'wc_quantumepay_latest_release_' . md5($this->repo . $this->branch . $this->asset_name);
-        $cached = get_transient($cache_key);
-
-        if ($cached !== false) {
-            return $cached;
-        }
+        delete_transient($cache_key);
 
         $response = wp_remote_get('https://api.github.com/repos/' . $this->repo . '/releases/latest', array(
-            'timeout' => 15,
+            'timeout' => 15, 'redirection' => 0, 'sslverify' => true, 'limit_response_size' => 524288,
             'headers' => array(
                 'Accept' => 'application/vnd.github+json',
                 'User-Agent' => 'WordPress/' . get_bloginfo('version'),
             ),
         ));
 
-        if (is_wp_error($response)) {
+        if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
             return false;
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
-        if (empty($body['tag_name'])) {
+        if (!is_array($body) || !is_string($body['tag_name'] ?? null) || !empty($body['draft'])
+            || !$this->valid_version(preg_replace('/^v/', '', $body['tag_name']))) {
             return false;
         }
 
         $download_url = $this->get_release_download_url($body);
 
         if (!$download_url) {
-            $download_url = 'https://github.com/' . $this->repo . '/archive/refs/tags/' . $body['tag_name'] . '.zip';
+            if ($this->asset_name !== '') return false;
+            $download_url = 'https://github.com/' . $this->repo . '/archive/refs/tags/' . rawurlencode($body['tag_name']) . '.zip';
         }
 
         $release = array(
-            'version' => ltrim($body['tag_name'], 'v'),
-            'url' => !empty($body['html_url']) ? $body['html_url'] : 'https://github.com/' . $this->repo,
+            'version' => preg_replace('/^v/', '', $body['tag_name']),
+            'url' => 'https://github.com/' . $this->repo,
             'download_url' => $download_url,
-            'body' => !empty($body['body']) ? $body['body'] : '',
+            'body' => isset($body['body']) && is_string($body['body']) ? wp_kses_post($body['body']) : '',
         );
-
-        set_transient($cache_key, $release, 6 * HOUR_IN_SECONDS);
 
         return $release;
     }
 
     private function get_release_download_url($release)
     {
-        if (empty($this->asset_name) || empty($release['assets'])) {
+        if (empty($this->asset_name) || empty($release['assets']) || !is_array($release['assets'])) {
             return false;
         }
 
         foreach ($release['assets'] as $asset) {
-            if (!empty($asset['name']) && $asset['name'] === $this->asset_name && !empty($asset['browser_download_url'])) {
+            if (is_array($asset) && ($asset['name'] ?? null) === $this->asset_name && $this->valid_package_url($asset['browser_download_url'] ?? null)) {
                 return $asset['browser_download_url'];
             }
         }

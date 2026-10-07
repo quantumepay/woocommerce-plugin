@@ -31,76 +31,43 @@ class CreditCard extends BaseApi
         return $this->postData($post_fields, $this->endpoint . '/sale');
     }
 
-    public function isPaymentSettled($payment_id)
+    public function isPaymentSettled($payment_id, $context = array())
     {
-        $payment_endpoint = $this->endpoint . '/' . $payment_id;
-        $response_body = $this->getData($payment_endpoint);
-        if ($response_body['status'] == 'pending_settlement') {
-            return false;
-        }
-        return true;
+        if (empty($payment_id)) return new \WP_Error('qep_missing_payment_id', 'The order has no gateway payment ID.');
+        $body = $this->getData($this->endpoint . '/' . rawurlencode($payment_id), $context);
+        if (is_wp_error($body)) return $body;
+        $status = $body['status'] ?? '';
+        if ($status === 'pending_settlement') return false;
+        if ($status === 'settled') return true;
+        return new \WP_Error('qep_unknown_settlement', 'Cannot refund automatically: gateway payment status is ' . sanitize_text_field($status) . '. Please check Qoin.');
+    }
+
+    private function operationResult($response)
+    {
+        $result = $response['qep_result'];
+        if ($result['outcome'] !== 'approved') return new \WP_Error('qep_' . $result['outcome'], $result['message'], $result);
+        $body = json_decode($response['body'], true);
+        return is_array($body) ? $body : array();
     }
 
     public function processRefund($payment_id, $post_data)
     {
-
-
-        $post_fields = array(
-            'amount' => $post_data['amount'],
-            'source_ip_address' => qp_get_user_ip(),
-            'user_id' => $post_data['user_id'],
-        );
-        $payment_endpoint = $this->endpoint . '/' . $payment_id . '/refund';
-        $responsePayment = $this->postData($post_fields, $payment_endpoint);
-
-
-        $responseBody = qp_json_to_arr($responsePayment['body'], 1);
-        //    dd($responseBody);
-
-        $payment_id    = (!empty($responseBody['payment_id'])) ? $responseBody['payment_id'] : '';
-        $transaction_id = (!empty($responseBody['transaction_id'])) ? $responseBody['transaction_id'] : '';
-
-        $message        = $responseBody['message']; // approved or completed
-
-        $orderNote = "Payment result: $message. \r\n payment id: $payment_id <br>\r\n Transaction_id: $transaction_id ";
-        update_post_meta($post_data['order_id'],  '_refund_api_payment', json_encode($responseBody, JSON_PRETTY_PRINT));
-
-        $order_detail_object = wc_get_order($post_data['order_id']);
-        $order_detail_object->add_order_note($orderNote);
-        qp_change_order_status($post_data['order_id'], 'wc-refunded');
+        $fields = array('amount' => $post_data['amount'], 'source_ip_address' => qp_get_user_ip(), 'user_id' => $post_data['user_id']);
+        return $this->operationResult($this->postData($fields, $this->endpoint . '/' . rawurlencode($payment_id) . '/refund',
+            array('order_id' => $post_data['order_id'], 'amount' => $post_data['amount'], 'currency' => $post_data['currency'] ?? 'USD')));
     }
 
     public function processReversal($payment_id, $post_data)
     {
-
-        $data_fields = array(
-            'user_id' => $post_data['user_id'],
-            'source_ip_address' => qp_get_user_ip()
-        );
-
-
-
-        $payment_endpoint = $this->endpoint . '/' . $payment_id . '/reversal';
-
-        $responsePayment = $this->postData($data_fields, $payment_endpoint);
-        $responseBody = qp_json_to_arr($responsePayment['body'], true);
-
-
-
-        if ($responseBody['status'] == 'reversed') {
-
-            qp_change_order_status($post_data['order_id'], 'wc-cancelled');
-        }
+        $fields = array('user_id' => $post_data['user_id'], 'source_ip_address' => qp_get_user_ip());
+        return $this->operationResult($this->postData($fields, $this->endpoint . '/' . rawurlencode($payment_id) . '/reversal',
+            array('order_id' => $post_data['order_id'], 'currency' => $post_data['currency'] ?? 'USD')));
     }
 
     public function processRebill($payment_id, $post_data)
     {
-        $payment_endpoint = $this->endpoint . '/' . $payment_id . '/rebill';
-        $responsePayment = $this->postData($post_data, $payment_endpoint);
-
-
-        $responseBody = qp_json_to_arr($responsePayment['body'], true);
-        //    dd($responseBody);
-        return $responseBody;
+        $context = array('order_id' => $post_data['order_id'] ?? '', 'customer_email' => $post_data['user_id'] ?? '');
+        unset($post_data['order_id']);
+        return $this->operationResult($this->postData($post_data, $this->endpoint . '/' . rawurlencode($payment_id) . '/rebill', $context));
     }
 }
