@@ -9,36 +9,36 @@ class App
     private static $refundContexts = array();
     private $blocksInitialized = false;
 
-	public function __construct()
-	{
+    public function __construct()
+    {
 
-		new PluginUpdater(
-	        WC_QUANTUMEPAY_MAIN_FILE,
-	        WC_QUANTUMEPAY_UPDATE_REPO,
-	        WC_QUANTUMEPAY_UPDATE_BRANCH,
-	        WC_QUANTUMEPAY_UPDATE_ASSET_NAME
-	    );
+        new PluginUpdater(
+            WC_QUANTUMEPAY_MAIN_FILE,
+            WC_QUANTUMEPAY_UPDATE_REPO,
+            WC_QUANTUMEPAY_UPDATE_BRANCH,
+            WC_QUANTUMEPAY_UPDATE_ASSET_NAME
+        );
 
-		$this->cleanupLegacyLogs();
-		register_activation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginActivationHook'));
-		register_deactivation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginDeactivationHook'));
+        $this->cleanupLegacyLogs();
+        register_activation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginActivationHook'));
+        register_deactivation_hook(WC_QUANTUMEPAY_MAIN_FILE, array($this, 'pluginDeactivationHook'));
 
-		add_action('init', array($this, 'initCallback'));
+        add_action('init', array($this, 'initCallback'));
 
-		add_action('plugins_loaded', array($this, 'QpInitGatewayClass'));
-		add_action('admin_enqueue_scripts', array($this, 'enqueueQuantumSettingsAssets'));
+        add_action('plugins_loaded', array($this, 'QpInitGatewayClass'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueueQuantumSettingsAssets'));
         add_action('admin_enqueue_scripts', array($this, 'enqueueRefundDialogs'), 30);
         add_action('admin_notices', array($this, 'showLiveCredentialsNotice'));
-		add_action('wp_ajax_qep_save_gateway_settings', array($this, 'saveQuantumGatewaySettings'));
+        add_action('wp_ajax_qep_save_gateway_settings', array($this, 'saveQuantumGatewaySettings'));
         add_action('woocommerce_cart_calculate_fees', array($this, 'applyCheckoutServiceFee'), 20);
         add_action('woocommerce_create_refund', array($this, 'captureRefundBalance'), 999, 2);
         add_action('woocommerce_blocks_loaded', array($this, 'initializeBlocks'));
         if (did_action('woocommerce_blocks_loaded')) $this->initializeBlocks();
-		add_filter(
-			'plugin_action_links_' . plugin_basename(WC_QUANTUMEPAY_MAIN_FILE),
-			array($this, 'addPluginSettingsLink')
-		);
-	}
+        add_filter(
+            'plugin_action_links_' . plugin_basename(WC_QUANTUMEPAY_MAIN_FILE),
+            array($this, 'addPluginSettingsLink')
+        );
+    }
 
     public function showLiveCredentialsNotice()
     {
@@ -294,108 +294,108 @@ CSS
             'amount' => $amount, 'taxable' => ($settings['service_fee_taxable'] ?? 'no') === 'yes', 'tax_class' => ''));
     }
 
-	public function addPluginSettingsLink($links)
-	{
-		$settings_url = admin_url(
-			'admin.php?page=wc-settings&tab=checkout&section=' . QP_GATEWAY_ID
-		);
+    public function addPluginSettingsLink($links)
+    {
+        $settings_url = admin_url(
+            'admin.php?page=wc-settings&tab=checkout&section=' . QP_GATEWAY_ID
+        );
 
-		$settings_link = '<a href="' . esc_url($settings_url) . '">Settings</a>';
+        $settings_link = '<a href="' . esc_url($settings_url) . '">Settings</a>';
 
-		array_unshift($links, $settings_link);
+        array_unshift($links, $settings_link);
 
-		return $links;
-	}
-
-
-	public function enqueueQuantumSettingsAssets($hook)
-	{
-	    if (
-	        !is_admin()
-	        || !isset($_GET['page'], $_GET['tab'], $_GET['section'])
-	        || 'wc-settings' !== $_GET['page']
-	        || 'checkout' !== $_GET['tab']
-	        || QP_GATEWAY_ID !== $_GET['section']
-	    ) {
-	        return;
-	    }
-
-	    wp_enqueue_style(
-	        'quantumepay-admin-settings',
-	        WC_QUANTUMEPAY_PLUGIN_URL . '/assets/css/quantumepay-admin.css',
-	        array(),
-	        WC_QUANTUMEPAY_VERSION
-	    );
-
-	    wp_enqueue_script(
-	        'quantumepay-admin-settings',
-	        WC_QUANTUMEPAY_PLUGIN_URL . '/assets/js/quantumepay-admin.js',
-	        array('jquery'),
-	        WC_QUANTUMEPAY_VERSION,
-	        true
-	    );
-
-	    wp_localize_script(
-	        'quantumepay-admin-settings',
-	        'qepAdminSettings',
-	        array(
-	            'ajaxUrl' => admin_url('admin-ajax.php'),
-	            'nonce'   => wp_create_nonce('qep_save_gateway_settings'),
-	            'version' => WC_QUANTUMEPAY_VERSION,
-	        )
-	    );
-	}
+        return $links;
+    }
 
 
-	public function saveQuantumGatewaySettings()
-	{
-		if (!current_user_can('manage_woocommerce')) {
-			wp_send_json_error(
-				array(
-					'message' => 'You do not have permission to update Quantum ePay settings.',
-				),
-				403
-			);
-		}
+    public function enqueueQuantumSettingsAssets($hook)
+    {
+        if (
+            !is_admin()
+            || !isset($_GET['page'], $_GET['tab'], $_GET['section'])
+            || 'wc-settings' !== $_GET['page']
+            || 'checkout' !== $_GET['tab']
+            || QP_GATEWAY_ID !== $_GET['section']
+        ) {
+            return;
+        }
 
-		check_ajax_referer('qep_save_gateway_settings', 'nonce');
+        wp_enqueue_style(
+            'quantumepay-admin-settings',
+            WC_QUANTUMEPAY_PLUGIN_URL . '/assets/css/quantumepay-admin.css',
+            array(),
+            WC_QUANTUMEPAY_VERSION
+        );
 
-		$submitted_settings = isset($_POST['settings']) && is_array($_POST['settings'])
-			? wp_unslash($_POST['settings'])
-			: array();
+        wp_enqueue_script(
+            'quantumepay-admin-settings',
+            WC_QUANTUMEPAY_PLUGIN_URL . '/assets/js/quantumepay-admin.js',
+            array('jquery'),
+            WC_QUANTUMEPAY_VERSION,
+            true
+        );
 
-		$allowed_fields = array(
-			'enabled',
-			'title',
-			'description',
-			'testmode',
-			'terminal_key',
-			'client_id',
-			'client_secret',
-			'test_terminal_key',
-			'test_client_id',
-			'test_client_secret',
-			'timeout_notification_recipients',
-			'service_fee_mode',
-			'service_fee_label',
-			'service_fee_type',
-			'service_fee_amount',
-			'service_fee_taxable',
-		);
+        wp_localize_script(
+            'quantumepay-admin-settings',
+            'qepAdminSettings',
+            array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce'   => wp_create_nonce('qep_save_gateway_settings'),
+                'version' => WC_QUANTUMEPAY_VERSION,
+            )
+        );
+    }
 
-		$option_key = 'woocommerce_' . QP_GATEWAY_ID . '_settings';
-		$current_settings = get_option($option_key, array());
 
-		if (!is_array($current_settings)) {
-			$current_settings = array();
-		}
+    public function saveQuantumGatewaySettings()
+    {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(
+                array(
+                    'message' => 'You do not have permission to update Quantum ePay settings.',
+                ),
+                403
+            );
+        }
 
-		foreach ($allowed_fields as $field) {
-			if (!array_key_exists($field, $submitted_settings)) {
-				continue;
-			}
+        check_ajax_referer('qep_save_gateway_settings', 'nonce');
 
-			$value = $submitted_settings[$field];
+        $submitted_settings = isset($_POST['settings']) && is_array($_POST['settings'])
+            ? wp_unslash($_POST['settings'])
+            : array();
+
+        $allowed_fields = array(
+            'enabled',
+            'title',
+            'description',
+            'testmode',
+            'terminal_key',
+            'client_id',
+            'client_secret',
+            'test_terminal_key',
+            'test_client_id',
+            'test_client_secret',
+            'timeout_notification_recipients',
+            'service_fee_mode',
+            'service_fee_label',
+            'service_fee_type',
+            'service_fee_amount',
+            'service_fee_taxable',
+        );
+
+        $option_key = 'woocommerce_' . QP_GATEWAY_ID . '_settings';
+        $current_settings = get_option($option_key, array());
+
+        if (!is_array($current_settings)) {
+            $current_settings = array();
+        }
+
+        foreach ($allowed_fields as $field) {
+            if (!array_key_exists($field, $submitted_settings)) {
+                continue;
+            }
+
+            $value = $submitted_settings[$field];
             if (!is_scalar($value)) {
                 wp_send_json_error(array('message' => 'Invalid settings value.'), 422);
                 return;
@@ -407,6 +407,10 @@ CSS
                 return;
             }
             if ($field === 'service_fee_amount') {
+                // Hidden custom amounts must not block saving other fee modes.
+                if (($current_settings['service_fee_mode'] ?? 'none') !== 'custom') {
+                    continue;
+                }
                 $value = wc_format_decimal($value);
                 if (!is_numeric($value) || !is_finite((float) $value) || (float) $value < 0) {
                     wp_send_json_error(array('message' => 'Service fee amount must be a number greater than or equal to zero.'), 422);
@@ -414,240 +418,240 @@ CSS
                 }
             }
 
-			$protected_credentials = array(
-				'client_id',
-				'client_secret',
-				'test_client_id',
-				'test_client_secret',
-			);
+            $protected_credentials = array(
+                'client_id',
+                'client_secret',
+                'test_client_id',
+                'test_client_secret',
+            );
 
-			if (
-				in_array($field, $protected_credentials, true)
-				&& '' === trim((string) $value)
-			) {
-				continue;
-			}
+            if (
+                in_array($field, $protected_credentials, true)
+                && '' === trim((string) $value)
+            ) {
+                continue;
+            }
 
-			switch ($field) {
-				case 'enabled':
-				case 'testmode':
-				case 'service_fee_taxable':
-					$current_settings[$field] = ('yes' === $value || '1' === (string) $value || true === $value)
-						? 'yes'
-						: 'no';
-					break;
+            switch ($field) {
+                case 'enabled':
+                case 'testmode':
+                case 'service_fee_taxable':
+                    $current_settings[$field] = ('yes' === $value || '1' === (string) $value || true === $value)
+                        ? 'yes'
+                        : 'no';
+                    break;
 
-				case 'description':
-				case 'timeout_notification_recipients':
-					$current_settings[$field] = sanitize_textarea_field((string) $value);
-					break;
+                case 'description':
+                case 'timeout_notification_recipients':
+                    $current_settings[$field] = sanitize_textarea_field((string) $value);
+                    break;
 
-				default:
-					$current_settings[$field] = sanitize_text_field((string) $value);
-					break;
-			}
-		}
+                default:
+                    $current_settings[$field] = sanitize_text_field((string) $value);
+                    break;
+            }
+        }
 
-		if (
-			isset($current_settings['testmode'])
-			&& 'no' === $current_settings['testmode']
-		) {
-			$missing_live_credentials = array();
+        if (
+            isset($current_settings['testmode'])
+            && 'no' === $current_settings['testmode']
+        ) {
+            $missing_live_credentials = array();
 
-			if (empty($current_settings['terminal_key'])) {
-				$missing_live_credentials[] = 'X-TERMINAL-KEY';
-			}
+            if (empty($current_settings['terminal_key'])) {
+                $missing_live_credentials[] = 'X-TERMINAL-KEY';
+            }
 
-			if (empty($current_settings['client_id'])) {
-				$missing_live_credentials[] = 'Client ID';
-			}
+            if (empty($current_settings['client_id'])) {
+                $missing_live_credentials[] = 'Client ID';
+            }
 
-			if (empty($current_settings['client_secret'])) {
-				$missing_live_credentials[] = 'Client Secret';
-			}
+            if (empty($current_settings['client_secret'])) {
+                $missing_live_credentials[] = 'Client Secret';
+            }
 
-			if (!empty($missing_live_credentials)) {
-				wp_send_json_error(
-					array(
-						'message' => 'Live Mode requires: ' . implode(', ', $missing_live_credentials) . '.',
-					),
-					422
-				);
-			}
-		}
+            if (!empty($missing_live_credentials)) {
+                wp_send_json_error(
+                    array(
+                        'message' => 'Live Mode requires: ' . implode(', ', $missing_live_credentials) . '.',
+                    ),
+                    422
+                );
+            }
+        }
 
-		$updated = update_option($option_key, $current_settings);
+        $updated = update_option($option_key, $current_settings);
 
-		if (!$updated && get_option($option_key, array()) !== $current_settings) {
-			wp_send_json_error(
-				array(
-					'message' => 'Quantum ePay settings could not be saved. Please try again.',
-				),
-				500
-			);
-		}
+        if (!$updated && get_option($option_key, array()) !== $current_settings) {
+            wp_send_json_error(
+                array(
+                    'message' => 'Quantum ePay settings could not be saved. Please try again.',
+                ),
+                500
+            );
+        }
 
-		wp_send_json_success(
-			array(
-				'message' => 'Quantum ePay settings saved successfully.',
-			)
-		);
-	}
+        wp_send_json_success(
+            array(
+                'message' => 'Quantum ePay settings saved successfully.',
+            )
+        );
+    }
 
-	private function cleanupLegacyLogs()
-	{
-	    $installed_version = get_option('wc_quantumepay_version');
+    private function cleanupLegacyLogs()
+    {
+        $installed_version = get_option('wc_quantumepay_version');
 
-	    if (
-	        !empty($installed_version) &&
-	        version_compare($installed_version, WC_QUANTUMEPAY_VERSION, '>=')
-	    ) {
-	        return;
-	    }
+        if (
+            !empty($installed_version) &&
+            version_compare($installed_version, WC_QUANTUMEPAY_VERSION, '>=')
+        ) {
+            return;
+        }
 
-	    $upload_dir = wp_upload_dir();
+        $upload_dir = wp_upload_dir();
 
-	    $files = array(
-	        $upload_dir['basedir'] . '/quantumepay.log',
-	        $upload_dir['basedir'] . '/quantum.log',
-	    );
+        $files = array(
+            $upload_dir['basedir'] . '/quantumepay.log',
+            $upload_dir['basedir'] . '/quantum.log',
+        );
 
-	    foreach ($files as $file) {
-	        if (file_exists($file)) {
-	            @unlink($file);
-	        }
-	    }
+        foreach ($files as $file) {
+            if (file_exists($file)) {
+                @unlink($file);
+            }
+        }
 
-	    update_option('wc_quantumepay_version', WC_QUANTUMEPAY_VERSION);
-	}
+        update_option('wc_quantumepay_version', WC_QUANTUMEPAY_VERSION);
+    }
 
-	public function pluginActivationHook()
-	{
-	}
+    public function pluginActivationHook()
+    {
+    }
 
-	public function pluginDeactivationHook()
-	{
-	}
+    public function pluginDeactivationHook()
+    {
+    }
 
-	public function initCallback()
-	{
-	}
+    public function initCallback()
+    {
+    }
 
-	public function QpInitGatewayClass()
-	{
+    public function QpInitGatewayClass()
+    {
 
-		if (!class_exists('\\WooCommerce')) {
-			add_action('admin_notices', array($this, 'wooCommerceMissingNotice'));
-		} else {
-			add_action('wcsat_messages', array($this, 'printMessage'), 10);
-			add_filter('woocommerce_payment_gateways', array($this, 'add_gateways'));
-		}
-		
-	}
+        if (!class_exists('\\WooCommerce')) {
+            add_action('admin_notices', array($this, 'wooCommerceMissingNotice'));
+        } else {
+            add_action('wcsat_messages', array($this, 'printMessage'), 10);
+            add_filter('woocommerce_payment_gateways', array($this, 'add_gateways'));
+        }
+        
+    }
 
-	public function wooCommerceMissingNotice()
-	{
-		echo '<div class="error"><p><strong>' . sprintf(esc_html__('Quantum ePay Gateway requires WooCommerce. You can download %s here.', ''), '<a href="https://woocommerce.com/" target="_blank">WooCommerce</a>') . '</strong></p></div>';
-		return;
-	}
-	/**
-	 * printMessage
-	 *
-	 * @return void
-	 */
-	public function printMessage()
-	{
-		$notice_arr = qp_show_notices();
-		if (!empty($notice_arr)) {
-			echo '<div class="notice notice-' . $notice_arr['type'] . ' is-dismissible">
+    public function wooCommerceMissingNotice()
+    {
+        echo '<div class="error"><p><strong>' . sprintf(esc_html__('Quantum ePay Gateway requires WooCommerce. You can download %s here.', ''), '<a href="https://woocommerce.com/" target="_blank">WooCommerce</a>') . '</strong></p></div>';
+        return;
+    }
+    /**
+     * printMessage
+     *
+     * @return void
+     */
+    public function printMessage()
+    {
+        $notice_arr = qp_show_notices();
+        if (!empty($notice_arr)) {
+            echo '<div class="notice notice-' . $notice_arr['type'] . ' is-dismissible">
                     <p>' . $notice_arr['message'] . '</p>
                 </div>';
-		}
-	}
+        }
+    }
 
-	public function add_gateways($gateways)
-	{
+    public function add_gateways($gateways)
+    {
 
-		$gateways[] = 'WooQuantum\\Application\\Gateways\\CreditCard';
-		return $gateways;
-	}
+        $gateways[] = 'WooQuantum\\Application\\Gateways\\CreditCard';
+        return $gateways;
+    }
 
-	// public function QpRefundCreateCheck($refund, $args)
-	// {
-	// 	$payment_gateways   = \WC_Payment_Gateways::instance();
-	// 	$payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
-	// 	$order_id = $args['order_id'];
-	// 	$cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
-	// 	$payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
-	// 	$user_id = get_post_meta($order_id, '_billing_email', true);
-	// 	$pendingSettlement = $cardPayment->isPaymentSettled($payment_id);
-	// 	if (!$pendingSettlement) {
-	// 		$post_data = array(
-	// 			'user_id' => $user_id,
-	// 			'order_id' => $order_id
-	// 		);
-	// 		$cardPayment->processReversal($payment_id, $post_data);
-	// 		wp_delete_post($refund->get_id(), true);
-	// 		// if (isset($refund) && is_a($refund, 'WC_Order_Refund')) {
-	// 		// 	$refund->delete(true);
-	// 		// }
-	// 		// return new \WP_Error('error', 'order cannot be refunded it is under settelment');
-	// 	}
-	// }
+    // public function QpRefundCreateCheck($refund, $args)
+    // {
+    //  $payment_gateways   = \WC_Payment_Gateways::instance();
+    //  $payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
+    //  $order_id = $args['order_id'];
+    //  $cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
+    //  $payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
+    //  $user_id = get_post_meta($order_id, '_billing_email', true);
+    //  $pendingSettlement = $cardPayment->isPaymentSettled($payment_id);
+    //  if (!$pendingSettlement) {
+    //      $post_data = array(
+    //          'user_id' => $user_id,
+    //          'order_id' => $order_id
+    //      );
+    //      $cardPayment->processReversal($payment_id, $post_data);
+    //      wp_delete_post($refund->get_id(), true);
+    //      // if (isset($refund) && is_a($refund, 'WC_Order_Refund')) {
+    //      //  $refund->delete(true);
+    //      // }
+    //      // return new \WP_Error('error', 'order cannot be refunded it is under settelment');
+    //  }
+    // }
 
-	// function QpOrderRefundAction($order_id, $refund_id)
-	// {
+    // function QpOrderRefundAction($order_id, $refund_id)
+    // {
 
-	// 	qp_plugin_log('############## Refund  ###################');
-	// 	qp_plugin_log("-----------------------------------------------------------------------------------------");
-	// 	qp_plugin_log($order_id);
-	// 	qp_plugin_log($refund_id);
+    //  qp_plugin_log('############## Refund  ###################');
+    //  qp_plugin_log("-----------------------------------------------------------------------------------------");
+    //  qp_plugin_log($order_id);
+    //  qp_plugin_log($refund_id);
 
 
-	// 	// Get the order object
-	// 	// $order = wc_get_order($order_id);
-	// 	$order = wc_get_order($order_id);
-	// 	qp_plugin_log('order sttaus' . $order->get_status());
-	// 	if ($order->get_status() == 'wc-cancelled') {
-	// 		qp_plugin_log('order cancelled');
-	// 		return;
-	// 	}
-	// 	$order_data = $order->get_data(); // The Order data  
+    //  // Get the order object
+    //  // $order = wc_get_order($order_id);
+    //  $order = wc_get_order($order_id);
+    //  qp_plugin_log('order sttaus' . $order->get_status());
+    //  if ($order->get_status() == 'wc-cancelled') {
+    //      qp_plugin_log('order cancelled');
+    //      return;
+    //  }
+    //  $order_data = $order->get_data(); // The Order data  
 
-	// 	qp_plugin_log("****** Order Detail**********");
-	// 	qp_plugin_log($order_data);
-	// 	// Get the refund object
-	// 	$refund = wc_get_order($refund_id);
-	// 	qp_plugin_log("******Refund**********");
-	// 	qp_plugin_log($refund);
+    //  qp_plugin_log("****** Order Detail**********");
+    //  qp_plugin_log($order_data);
+    //  // Get the refund object
+    //  $refund = wc_get_order($refund_id);
+    //  qp_plugin_log("******Refund**********");
+    //  qp_plugin_log($refund);
 
-	// 	// Check if the refund is fully or partially refunded
-	// 	$is_partial_refund = ($refund->get_amount() < $order->get_total());
-	// 	qp_plugin_log("******Total amount**********");
-	// 	qp_plugin_log($order->get_total());
+    //  // Check if the refund is fully or partially refunded
+    //  $is_partial_refund = ($refund->get_amount() < $order->get_total());
+    //  qp_plugin_log("******Total amount**********");
+    //  qp_plugin_log($order->get_total());
 
-	// 	$payment_gateways   = \WC_Payment_Gateways::instance();
-	// 	$payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
-	// 	$refund_amount = $refund->get_amount();
-	// 	$cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
-	// 	$payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
-	// 	$user_id = get_post_meta($order_id, '_billing_email', true);
-	// 	$post_data = array(
-	// 		'amount' => $refund_amount,
-	// 		'order_id' => $order_id,
-	// 		'user_id' => $user_id
-	// 	);
-	// 	$cardPayment->processRefund($payment_id, $post_data);
-	// }
+    //  $payment_gateways   = \WC_Payment_Gateways::instance();
+    //  $payment_gateway    = $payment_gateways->payment_gateways()[QP_GATEWAY_ID];
+    //  $refund_amount = $refund->get_amount();
+    //  $cardPayment = new CreditCard($payment_gateway->terminal_key, $payment_gateway->testmode);
+    //  $payment_id = get_post_meta($order_id, QP_GATEWAY_ID . '_payment_id', true);
+    //  $user_id = get_post_meta($order_id, '_billing_email', true);
+    //  $post_data = array(
+    //      'amount' => $refund_amount,
+    //      'order_id' => $order_id,
+    //      'user_id' => $user_id
+    //  );
+    //  $cardPayment->processRefund($payment_id, $post_data);
+    // }
 
-	public  function add_custom_order_note($order_id)
-	{
-		qp_plugin_log('Order $order_id ');
-		qp_plugin_log($order_id);
-		$order_note = 'Your order note here Asad';
+    public  function add_custom_order_note($order_id)
+    {
+        qp_plugin_log('Order $order_id ');
+        qp_plugin_log($order_id);
+        $order_note = 'Your order note here Asad';
 
-		$order = wc_get_order($order_id);
-		$order->add_order_note($order_note); // This will add as a private note.
-		$order->add_order_note($order_note, 1); //This will add note for          the customer.
-	}
+        $order = wc_get_order($order_id);
+        $order->add_order_note($order_note); // This will add as a private note.
+        $order->add_order_note($order_note, 1); //This will add note for          the customer.
+    }
 }

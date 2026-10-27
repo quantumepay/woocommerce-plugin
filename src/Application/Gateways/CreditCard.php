@@ -377,6 +377,17 @@ class CreditCard extends \WC_Payment_Gateway_CC
 
     public function validate_service_fee_amount_field($key, $value)
     {
+        $posted = $this->get_post_data();
+        $mode_key = $this->get_field_key('service_fee_mode');
+        $mode = $posted[$mode_key] ?? $this->get_option('service_fee_mode', 'none');
+
+        // Use the submitted mode so switching away from custom works immediately.
+        if (in_array($mode, array('none', 'gateway'), true)) {
+            $saved = wc_format_decimal($this->get_option('service_fee_amount', '0'));
+            return is_numeric($saved) && is_finite((float) $saved) && (float) $saved >= 0
+                ? $saved : '0';
+        }
+
         $amount = wc_format_decimal($value);
         if (!is_numeric($amount) || !is_finite((float) $amount) || (float) $amount < 0) {
             throw new \Exception('Service fee amount must be a number greater than or equal to zero.');

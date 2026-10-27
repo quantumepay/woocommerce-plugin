@@ -2,7 +2,7 @@
 
 Accept credit card payments through Quantum ePay's Qoin platform using WooCommerce classic checkout or the Checkout Block.
 
-**Current version:** 2.1.0
+**Current version:** 2.1.1
 
 ## Requirements
 
@@ -79,6 +79,11 @@ The event payload is built from selected fields rather than the raw card request
 Before updating a merchant, verify successful and declined payments, payment-method switching with custom fees, timeout handling, settled refunds, and reversals. If the merchant uses subscriptions, also validate subscription checkout and scheduled renewals.
 
 ## Changelog
+
+### 2.1.1
+
+- Fixed settings saves with No service fee or gateway service fees selected.
+- Preserved saved custom amounts while retaining validation for custom fees.
 
 ### 2.1.0
 

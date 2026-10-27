@@ -1,7 +1,7 @@
 === Qoin - Payment Gateway ===
 Tags: woocommerce, payments, credit card, quantum epay, qoin
 Requires PHP: 7.1
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 
 Accept credit card payments through Quantum ePay's Qoin platform with classic WooCommerce checkout and Checkout Blocks.
 
@@ -77,6 +77,11 @@ Contact support@quantumepay.com. Never send full card details or client secrets 
 
 == Changelog ==
 
+= 2.1.1 =
+
+* Fixed settings saves with No service fee or gateway service fees selected.
+* Preserved saved custom amounts while retaining validation for custom fees.
+
 = 2.1.0 =
 
 * Added WooCommerce Checkout Blocks integration.
@@ -88,6 +93,10 @@ Contact support@quantumepay.com. Never send full card details or client secrets 
 * Updated GitHub release update handling.
 
 == Upgrade Notice ==
+
+= 2.1.1 =
+
+Fixes service fee amount validation when custom service fees are disabled.
 
 = 2.1.0 =
 
