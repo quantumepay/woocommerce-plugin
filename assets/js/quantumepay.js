@@ -1,8 +1,5 @@
 var successCallback = function(data) {
-
-    var checkout_form = $( 'form.woocommerce-checkout' );
-    //checkout_form.submit();
-
+    var checkout_form = $('form.woocommerce-checkout');
 };
 
 var errorCallback = function(data) {
@@ -10,57 +7,54 @@ var errorCallback = function(data) {
 };
 
 var tokenRequest = function() {
-
-    // here will be a payment gateway function that process all the card data from your form,
-    // maybe it will need your Publishable API key which is misha_params.publishableKey
-    // and fires successCallback() on success and errorCallback on failure
     return false;
-
 };
 
-jQuery(function($){
-
-    var checkout_form = $( 'form.woocommerce-checkout' );
-    //checkout_form.on( 'checkout_place_order', tokenRequest );
-
+jQuery(function($) {
+    var checkout_form = $('form.woocommerce-checkout');
 });
 
+(function() {
+    'use strict';
 
+    function formatExpiry(value) {
+        const compact = String(value).replace(/\s/g, '');
+        const complete = compact.match(/^(\d{1,2})\/(\d{4})$/);
 
-document.addEventListener('DOMContentLoaded', function() {
-	const parentElement = document.querySelector('.woocommerce');
-
-    // Add event listener to the parent element
-    parentElement.addEventListener('input', function(event) {
-        const targetElement = event.target;
-        // Check if the event target matches the card expiration input field
-        if (targetElement.matches('#qp_expdate')) {
-            formatCardExpiration(targetElement);
+        if (complete) {
+            return complete[1].padStart(2, '0') + ' / ' + complete[2].slice(-2);
         }
-    });
 
-    // Function to format the card expiration
-    const formatCardExpiration = cardExpirationInput => {
-        // Get the input value and apply the desired formatting
-        let input = cardExpirationInput.value.replace(/\D/g, '');
-        if (input.length > 2) {
-            const month = input.substring(0, 2);
-            const year = input.substring(2, 4);
-            cardExpirationInput.value = `${month} / ${year}`;
-        } else {
-            cardExpirationInput.value = input;
+        const digits = compact.replace(/\D/g, '');
+
+        if (/^\d{6}$/.test(digits)) {
+            return digits.slice(0, 2) + ' / ' + digits.slice(-2);
         }
+
+        const short = digits.slice(0, 4);
+
+        return short.length > 2
+            ? short.slice(0, 2) + ' / ' + short.slice(2)
+            : short;
     }
-	
-});
 
+    const selector = '#qp_expdate, input[name="quantumepay-card-expiry"]';
 
+    document.addEventListener('paste', function(event) {
+        if (!event.target.matches(selector) || !event.clipboardData) return;
 
+        const text = event.clipboardData.getData('text').trim();
 
+        if (!/^(?:\d{1,2}\s*\/\s*\d{2}(?:\d{2})?|\d{4}|\d{6})$/.test(text)) return;
 
+        event.preventDefault();
+        event.target.value = formatExpiry(text);
+        event.target.dispatchEvent(new Event('input', { bubbles: true }));
+        event.target.dispatchEvent(new Event('change', { bubbles: true }));
+    }, true);
 
-
-
-
-
-	
+    document.addEventListener('input', function(event) {
+        if (!event.target.matches(selector)) return;
+        event.target.value = formatExpiry(event.target.value);
+    }, true);
+})();

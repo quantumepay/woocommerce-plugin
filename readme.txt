@@ -1,7 +1,7 @@
 === Qoin - Payment Gateway ===
 Tags: woocommerce, payments, credit card, quantum epay, qoin
 Requires PHP: 7.1
-Stable tag: 2.1.1
+Stable tag: 2.1.2
 
 Accept credit card payments through Quantum ePay's Qoin platform with classic WooCommerce checkout and Checkout Blocks.
 
@@ -77,6 +77,12 @@ Contact support@quantumepay.com. Never send full card details or client secrets 
 
 == Changelog ==
 
+= 2.1.2 =
+
+* Fixed sale payload expiry years to use numeric YY instead of YYYY.
+* Restricted checkout expiry display to MM / YY and normalized pasted four-digit years.
+* Added expiry normalization at the API boundary and in the legacy payment handler.
+
 = 2.1.1 =
 
 * Fixed settings saves with No service fee or gateway service fees selected.
@@ -93,6 +99,10 @@ Contact support@quantumepay.com. Never send full card details or client secrets 
 * Updated GitHub release update handling.
 
 == Upgrade Notice ==
+
+= 2.1.2 =
+
+Fixes the card expiry year sent to Qoin. Retest checkout after updating.
 
 = 2.1.1 =
 

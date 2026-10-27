@@ -561,10 +561,11 @@ class CreditCard extends \WC_Payment_Gateway_CC
             if (!preg_match('/^\d{12,19}$/', $number)) return $this->payment_failure($order, 'Please check your card number and try again.', 'invalid_card_number');
             if (!preg_match('/^(0?[1-9]|1[0-2])\/(\d{2}|\d{4})$/', $expiry, $matches)) return $this->payment_failure($order, 'Please check your card expiration date and try again.', 'invalid_expiry');
             $year = strlen($matches[2]) === 2 ? '20' . $matches[2] : $matches[2];
+            if ((int) $year < 2000 || (int) $year > 2099) return $this->payment_failure($order, 'Please check your card expiration date and try again.', 'invalid_expiry');
             if ((int) ($year . sprintf('%02d', $matches[1])) < (int) gmdate('Ym')) return $this->payment_failure($order, 'Your card has expired. Please use another card.', 'expired_card');
             if (!preg_match('/^\d{3,4}$/', $cvv)) return $this->payment_failure($order, 'Please check your card security code and try again.', 'invalid_security_code');
             $data = array('first_name' => $billing['first_name'], 'last_name' => $billing['last_name'],
-                'qp_ccNo' => $number, 'qp_cvv' => $cvv, 'expiry_month' => sprintf('%02d', $matches[1]), 'expiry_year' => $year,
+                'qp_ccNo' => $number, 'qp_cvv' => $cvv, 'expiry_month' => (int) $matches[1], 'expiry_year' => (int) substr($year, -2),
                 'billing_address' => array('address_1' => $billing['address_1'], 'address_2' => $billing['address_2'],
                     'city' => $billing['city'], 'state' => $billing['state'], 'postal_code' => $billing['postcode'], 'country_code' => $billing['country']),
                 'total_amount' => $order->get_total(), 'currency' => $order->get_currency(), 'email' => $billing['email'],

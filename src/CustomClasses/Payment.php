@@ -269,9 +269,17 @@ class Payment extends \WC_Payment_Gateway
         $qp_ccNo            = trim($_POST['qp_ccNo']);
         $qp_expdate_post     = $_POST['qp_expdate'];
         $qp_expdate         = str_replace(' ', '', $qp_expdate_post);
-        $exp                     = explode("/", $qp_expdate);
-        $expiry_month        = $exp[0];
-        $expiry_year         = $exp[1];
+        if (!preg_match('/^(0?[1-9]|1[0-2])\/([0-9]{2}|20[0-9]{2})$/', $qp_expdate, $exp)) {
+            wc_add_notice('Please check your card expiration date and try again.', 'error');
+            return;
+        }
+        $full_year = strlen($exp[2]) === 2 ? '20' . $exp[2] : $exp[2];
+        if ((int) ($full_year . sprintf('%02d', $exp[1])) < (int) gmdate('Ym')) {
+            wc_add_notice('Your card has expired. Please use another card.', 'error');
+            return;
+        }
+        $expiry_month        = (int) $exp[1];
+        $expiry_year         = (int) substr($full_year, -2);
         $qp_cvv              = trim($_POST['qp_cvv']);
 
 

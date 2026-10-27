@@ -2,7 +2,7 @@
 
 Accept credit card payments through Quantum ePay's Qoin platform using WooCommerce classic checkout or the Checkout Block.
 
-**Current version:** 2.1.1
+**Current version:** 2.1.2
 
 ## Requirements
 
@@ -79,6 +79,12 @@ The event payload is built from selected fields rather than the raw card request
 Before updating a merchant, verify successful and declined payments, payment-method switching with custom fees, timeout handling, settled refunds, and reversals. If the merchant uses subscriptions, also validate subscription checkout and scheduled renewals.
 
 ## Changelog
+
+### 2.1.2
+
+- Send numeric YY expiry years to Qoin while using full years for expiration validation.
+- Format classic and Blocks checkout expiry fields as MM / YY, including pasted four-digit years.
+- Normalize expiry at the API boundary and in the legacy payment handler.
 
 ### 2.1.1
 

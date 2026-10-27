@@ -7,13 +7,22 @@ class CreditCard extends BaseApi
     public $endpoint = 'creditcard';
     public function processPayment($post_data)
     {
+        // Qoin expects numeric month and a two-digit year, including direct callers.
+        $month = trim((string) ($post_data['expiry_month'] ?? ''));
+        $year_value = $post_data['expiry_year'] ?? '';
+        $year = is_int($year_value) && $year_value >= 0 && $year_value <= 99
+            ? sprintf('%02d', $year_value) : trim((string) $year_value);
+        if (!preg_match('/^(0?[1-9]|1[0-2])$/', $month)
+            || !preg_match('/^(?:[0-9]{2}|20[0-9]{2})$/', $year)) {
+            throw new \InvalidArgumentException('Invalid card expiration date.');
+        }
         $post_fields = array(
             'account' => array(
                 'first_name' => $post_data['first_name'],
                 'last_name' => $post_data['last_name'],
                 'card_security_code' => $post_data['qp_cvv'],
-                'expiry_month' => $post_data['expiry_month'],
-                'expiry_year' => $post_data['expiry_year'],
+                'expiry_month' => (int) $month,
+                'expiry_year' => (int) substr($year, -2),
                 'card_number' => str_replace(" ","",$post_data['qp_ccNo']),
                 'billing_address' => $post_data['billing_address']
             ),
